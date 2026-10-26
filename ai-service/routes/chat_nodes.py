@@ -10,7 +10,12 @@ from typing import TypedDict, Optional, List, Dict
 
 from routes.chat_deps import _filter_garbled_results
 from rag.retrieval import hybrid_search
-from rag.generator import generate_answer, generate_fallback_answer, self_check_answer
+from rag.generator import (
+    generate_answer,
+    generate_fallback_answer,
+    generate_general_answer,
+    self_check_answer,
+)
 from rag.reranker import rerank
 from rag.knowledge_base import get_collection_name
 from rag.query_rewriter import rewrite_query, hyde_rewrite
@@ -108,11 +113,11 @@ def rewrite_query_node(state: ChatState) -> dict:
 def generate_node(state: ChatState) -> dict:
     """节点5：LLM 生成回答"""
     fine_results = _filter_garbled_results(state["fine_results"])
-    if not fine_results:
-        return {"answer": "抱歉，知识库中暂无相关内容。请先上传文档或等待知识库更新。",
-                "sources": []}
     try:
-        gen_result = generate_answer(state["question"], fine_results, state["history"])
+        if fine_results:
+            gen_result = generate_answer(state["question"], fine_results, state["history"])
+        else:
+            gen_result = generate_general_answer(state["question"], state["history"])
         return {"answer": gen_result["answer"], "sources": gen_result["sources"]}
     except Exception as e:
         logger.error(f"Generation failed: {e}")

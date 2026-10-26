@@ -73,6 +73,29 @@ def build_rag_messages(query: str, context_docs: List[Dict],
     return messages
 
 
+def build_general_messages(query: str, chat_history: List[Dict] = None) -> List[Dict]:
+    """知识库为空或暂不可用时，构建通用社团助手消息。"""
+    messages = [{"role": "system", "content": (
+        "你是高校社团管理助手，负责活动策划、招新、签到、报名、积分、宣传、复盘和成果报告等问题。"
+        "请给出具体、可执行、结构清晰的建议。涉及当前社团的真实成员、活动或统计数据时，"
+        "如果没有可靠数据，应明确说明并请用户补充，不得编造。"
+    )}]
+    if chat_history:
+        messages.extend(chat_history[-10:])
+    messages.append({"role": "user", "content": query})
+    return messages
+
+
+def generate_general_answer(query: str, chat_history: List[Dict] = None) -> Dict:
+    """无 RAG 上下文时仍提供通用社团管理问答。"""
+    answer = _router_call(
+        "rag",
+        build_general_messages(query, chat_history),
+        temperature=LLM_TEMPERATURE,
+    )
+    return {"answer": answer, "sources": []}
+
+
 def generate_answer(query: str, context_docs: List[Dict],
                     chat_history: List[Dict] = None) -> Dict:
     messages = build_rag_messages(query, context_docs, chat_history)

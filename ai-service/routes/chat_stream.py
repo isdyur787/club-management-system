@@ -20,7 +20,7 @@ from routes.chat_agent import _try_function_calling
 from rag.retrieval import hybrid_search
 from rag.reranker import rerank
 from rag.knowledge_base import get_collection_name
-from rag.generator import build_rag_messages
+from rag.generator import build_general_messages, build_rag_messages
 from rag.query_rewriter import rewrite_query
 from rag.latency import get_llm_limiter, get_retrieval_cache
 from config import RERANKER_TOP_K, COARSE_TOP_K
@@ -97,7 +97,11 @@ def _stream_generate(question: str, fine_results: List[Dict],
     """
     from agents.model_router import get_model_router
 
-    messages = build_rag_messages(question, fine_results, history)
+    messages = (
+        build_rag_messages(question, fine_results, history)
+        if fine_results
+        else build_general_messages(question, history)
+    )
 
     router = get_model_router()
     result = router.call_with_fallback(
@@ -182,18 +186,19 @@ async def stream_event_generator(request) -> AsyncGenerator[str, None]:
             timeout=30.0
         )
     except asyncio.TimeoutError:
-        yield f"data: {json.dumps({'type': 'error', 'content': '检索超时，请稍后重试'}, ensure_ascii=False)}\n\n"
-        yield "data: [DONE]\n\n"
-        return
-
-    if not fine_results:
-        yield f"data: {json.dumps({'type': 'token', 'content': '抱歉，知识库中暂无相关内容。请先上传文档或等待知识库更新。'}, ensure_ascii=False)}\n\n"
-        yield f"data: {json.dumps({'type': 'done', 'sources': []}, ensure_ascii=False)}\n\n"
-        yield "data: [DONE]\n\n"
-        return
+        logger.warning("Retrieval timed out; falling back to general chat")
+        fine_results, sources = [], []
+    except Exception as e:
+        logger.warning(f"Retrieval unavailable; falling back to general chat: {e}")
+        fine_results, sources = [], []
 
     # 6. 真流式生成（分阶段状态 + LLM 并发控制）
-    yield f"data: {json.dumps({'type': 'status', 'content': f'检索到 {len(fine_results)} 个相关文档，正在生成回答...'}, ensure_ascii=False)}\n\n"
+    status = (
+        f"检索到 {len(fine_results)} 个相关文档，正在生成回答..."
+        if fine_results
+        else "知识库暂无可用资料，正在使用通用社团助手回答..."
+    )
+    yield f"data: {json.dumps({'type': 'status', 'content': status}, ensure_ascii=False)}\n\n"
 
     full_answer = ""
     limiter = get_llm_limiter()
@@ -222,7 +227,6 @@ async def stream_event_generator(request) -> AsyncGenerator[str, None]:
             if isinstance(token, Exception):
                 raise RuntimeError("模型流式生成失败") from token
             full_answer += token
-            yield f"data: {json.dumps({'type': 'token', 'content': token}, ensure_ascii=False)}\n\n"
 
     except Exception as e:
         logger.error(f"Stream error: {e}")
@@ -240,6 +244,11 @@ async def stream_event_generator(request) -> AsyncGenerator[str, None]:
     stream_check_passed = bool(stream_self_check.get("passed", True))
     if not stream_check_passed:
         full_answer = f"⚠️ 以下回答可能不完全准确，仅供参考：\n\n{full_answer}"
+
+    # 先完整收集并清理模型输出，再分句推送，避免将 <think> 推理草稿发送到前端。
+    for sentence in _split_sentences(full_answer):
+        yield f"data: {json.dumps({'type': 'token', 'content': sentence}, ensure_ascii=False)}\n\n"
+        await asyncio.sleep(0.02)
 
     cache_payload = {"answer": full_answer, "sources": sources}
     if not history and stream_check_passed:

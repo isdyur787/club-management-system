@@ -93,7 +93,9 @@ class Guardrails:
 
     def filter_output(self, answer: str) -> str:
         """输出敏感信息脱敏"""
-        filtered = answer
+        # 部分 OpenAI 兼容模型会把推理过程写入 content，并以 </think> 结束。
+        # 对外只保留最终答案，避免在 UI 中暴露内部推理草稿。
+        filtered = re.sub(r"(?is)^.*?</think>\s*", "", answer).strip()
         for pattern, replacement in self.SENSITIVE_RULES:
             filtered = re.sub(pattern, replacement, filtered, flags=re.IGNORECASE)
         return filtered

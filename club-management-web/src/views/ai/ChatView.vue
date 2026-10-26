@@ -48,10 +48,9 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted, onUnmounted, watch } from 'vue'
+import { ref, nextTick, onMounted, watch } from 'vue'
 import { Loading } from '@element-plus/icons-vue'
-import { aiChatStream } from '@/api/ai'
-import { readSSEStream } from '@/utils/sse'
+import { aiChat } from '@/api/ai'
 import { listClubs } from '@/api/club'
 
 const messagesRef = ref(null)
@@ -63,10 +62,8 @@ const sessionId = ref(null)
 const currentClubId = ref(1)
 const statusMessage = ref('')
 const clubList = ref([])
-let abortController = null
 
 watch(currentClubId, () => {
-  abortController?.abort()
   sessionId.value = null
   messages.value = []
 })
@@ -135,51 +132,23 @@ const sendMessage = async () => {
   scrollToBottom()
 
   try {
-    // 取消上一次未完成的请求
-    if (abortController) abortController.abort()
-    abortController = new AbortController()
-
-    const response = await aiChatStream({
+    const response = await aiChat({
       clubId: currentClubId.value,
       sessionId: sessionId.value,
       message: msg
-    }, abortController.signal)
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`)
-    }
-
-    // SSE 流式读取
-    streaming.value = true
-
-    // 添加空的助手消息占位
-    messages.value.push({ role: 'assistant', content: '', sources: [] })
-    const msgIndex = messages.value.length - 1
-
-    await readSSEStream(response, {
-      onSession: (id) => { sessionId.value = id },
-      onToken: (content) => {
-        messages.value[msgIndex] = { ...messages.value[msgIndex], content }
-        scrollToBottom()
-      },
-      onDone: (doneSources) => {
-        messages.value[msgIndex] = { ...messages.value[msgIndex], sources: doneSources }
-      },
-      onStatus: (content) => {
-        statusMessage.value = content
-      },
-      onError: (content) => {
-        messages.value[msgIndex] = { ...messages.value[msgIndex], content: `❗ ${content}` }
-      }
+    })
+    sessionId.value = response.data.sessionId
+    messages.value.push({
+      role: 'assistant',
+      content: response.data.answer,
+      sources: response.data.sources || []
     })
   } catch (e) {
-    if (e.name === 'AbortError') return  // 用户主动取消，不报错
     messages.value.push({
       role: 'assistant',
       content: '抱歉，服务暂时不可用，请稍后重试。'
     })
   } finally {
-    abortController = null
     loading.value = false
     streaming.value = false
     statusMessage.value = ''
@@ -200,10 +169,6 @@ onMounted(async () => {
   }
 })
 
-// 组件卸载时取消未完成的请求
-onUnmounted(() => {
-  if (abortController) abortController.abort()
-})
 </script>
 
 <style scoped>

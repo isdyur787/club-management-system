@@ -24,7 +24,7 @@ JAR = ROOT / "target/club-management-1.0.0-SNAPSHOT.jar"
 def read_env(path):
     values = {}
     if path.exists():
-        for line in path.read_text().splitlines():
+        for line in path.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
                 key, value = line.split("=", 1)
@@ -66,7 +66,18 @@ def executable(name, *candidates):
 
 
 def process_stamp(pid):
-    result = subprocess.run(["ps", "-p", str(pid), "-o", "lstart="], capture_output=True, text=True)
+    if os.name == "nt":
+        command = (
+            f"$p = Get-Process -Id {int(pid)} -ErrorAction SilentlyContinue; "
+            "if ($p) { $p.StartTime.ToUniversalTime().ToString('o') }"
+        )
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", command],
+            capture_output=True,
+            text=True,
+        )
+    else:
+        result = subprocess.run(["ps", "-p", str(pid), "-o", "lstart="], capture_output=True, text=True)
     return result.stdout.strip() if result.returncode == 0 else ""
 
 
@@ -116,8 +127,14 @@ def sql(env, statement, database=None, password=None, check=True):
                "--default-character-set=utf8mb4", "--batch", "--skip-column-names"]
     if database:
         command.append(database)
-    result = subprocess.run(command, input=statement, text=True, capture_output=True,
-                            env={**env, "MYSQL_PWD": env["MYSQL_PASSWORD"] if password is None else password})
+    result = subprocess.run(
+        command,
+        input=statement,
+        text=True,
+        encoding="utf-8",
+        capture_output=True,
+        env={**env, "MYSQL_PWD": env["MYSQL_PASSWORD"] if password is None else password},
+    )
     if check and result.returncode:
         raise RuntimeError(f"数据库操作失败：{result.stderr.strip()}")
     return result
@@ -165,7 +182,11 @@ def start_mysql(env):
             if applied != checksum:
                 raise RuntimeError(f"已执行过的 {path.name} 内容发生变化，请新增迁移脚本。")
             continue
-        content = re.sub(r"(?im)^\s*USE\s+club_management\s*;", "", path.read_text())
+        content = re.sub(
+            r"(?im)^\s*USE\s+club_management\s*;",
+            "",
+            path.read_text(encoding="utf-8"),
+        )
         # 种子数据和版本记录同一事务；遇错关闭连接会回滚 DML，避免半份数据。
         # MySQL 的 DDL 会隐式提交，DDL 失败仍需人工检查，禁止忽略错误继续导入。
         sql(env, "START TRANSACTION;\n" + content + "\n"

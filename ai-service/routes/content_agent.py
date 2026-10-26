@@ -54,6 +54,8 @@ async def generate_content(request: ContentGenerateRequest):
                 title = r.get("metadata", {}).get("title", "")
                 history_text += f"[参考{i+1}] {title}: {r['content'][:150]}\n"
 
+        history_section = "历史同类活动经验：\n" + history_text if history_text else ""
+
         prompt = f"""你是一个社团活动策划专家。请为以下活动生成完整的文案包。
 
 活动信息：
@@ -64,7 +66,7 @@ async def generate_content(request: ContentGenerateRequest):
 - 预计人数：{request.estimated_participants}
 - 预算：{request.budget}元
 
-{"历史同类活动经验：\n" + history_text if history_text else ""}
+{history_section}
 
 请返回：
 - title_options：3个备选标题（有吸引力，适合宣传）
