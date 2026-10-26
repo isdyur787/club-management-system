@@ -44,6 +44,14 @@ export function signOut(data) {
 }
 
 // === 积分 ===
+export function getPointsClubs() {
+  return request.get('/points/clubs')
+}
+
+export function getClubPointsLogs(clubId, params) {
+  return request.get('/points/activity', { params: { clubId, ...params } })
+}
+
 export function getMyPointsLogs(clubId, params) {
   return request.get('/points/my', { params: { clubId, ...params } })
 }

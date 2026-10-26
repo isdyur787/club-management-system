@@ -6,7 +6,7 @@ import datetime
 import pymysql
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from typing import Optional
-from tools.document_parser import parse_document
+from tools.document_parser import parse_document, resolve_document_path
 from rag.knowledge_base import add_document, delete_document, count_documents, get_collection_name
 from tools.db_reader import DBReader
 from config import UPLOAD_DIR
@@ -313,7 +313,7 @@ async def ingest_all_documents():
             # 获取内容
             content = None
             file_path = doc.get("file_path")
-            if file_path and os.path.isfile(file_path):
+            if file_path and resolve_document_path(file_path).is_file():
                 content = parse_document(file_path)
             if not content and doc_type == "activity_report" and source_id:
                 with reader.conn.cursor(pymysql.cursors.DictCursor) as cursor:

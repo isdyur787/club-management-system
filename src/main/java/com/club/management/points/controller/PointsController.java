@@ -7,6 +7,7 @@ import com.club.management.points.service.PointsService;
 import com.club.management.points.vo.PointsLogVO;
 import com.club.management.points.vo.PointsRankingVO;
 import com.club.management.points.vo.PointsSummaryVO;
+import com.club.management.points.vo.PointsClubVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,6 +19,20 @@ public class PointsController {
 
     @Autowired
     private PointsService pointsService;
+
+    @GetMapping("/clubs")
+    @RequirePermission("points:view")
+    public R<List<PointsClubVO>> getAvailableClubs() {
+        return R.ok(pointsService.getAvailableClubs());
+    }
+
+    @GetMapping("/activity")
+    @RequirePermission("points:view")
+    public R<PageResult<PointsLogVO>> getClubLogs(@RequestParam Long clubId,
+            @RequestParam(defaultValue = "1") int pageNum,
+            @RequestParam(defaultValue = "10") int pageSize) {
+        return R.ok(pointsService.getClubLogs(clubId, pageNum, pageSize));
+    }
 
     @GetMapping("/my")
     @RequirePermission("points:view")

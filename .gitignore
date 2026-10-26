@@ -49,6 +49,10 @@ desktop.ini
 # ========== 日志 ==========
 *.log
 
+# ========== 临时验证产物 ==========
+screenshots/test-*.png
+ai-service/evaluation/eval_result.json
+
 # ========== Reasonix ==========
 .reasonix/
 

@@ -27,7 +27,7 @@ MULTIMODAL_BASE_URL = os.getenv("MULTIMODAL_BASE_URL") or LLM_BASE_URL
 MULTIMODAL_MODEL = os.getenv("MULTIMODAL_MODEL") or LLM_MODEL
 
 # Embedding 模型
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-large-zh-v1.5")
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5")
 # 本地缓存路径（优先使用，避免联网超时）
 _local_bge = os.path.join(os.path.expanduser("~"), ".cache", "huggingface", "hub", "models--BAAI--bge-large-zh-v1.5", "snapshots")
 if "EMBEDDING_MODEL" not in os.environ and os.path.isdir(_local_bge):
@@ -71,7 +71,7 @@ REPORT_OUTPUT_DIR = str(_data_dir / "reports")
 UPLOAD_DIR = str(_data_dir / "uploads")
 
 # Reranker 模型
-RERANKER_MODEL = os.getenv("RERANKER_MODEL", os.path.expanduser("~/.cache/modelscope/hub/models/BAAI/bge-reranker-v2-m3"))
+RERANKER_MODEL = os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-base")
 RERANKER_DEVICE = "cpu"
 RERANKER_TOP_K = 3
 

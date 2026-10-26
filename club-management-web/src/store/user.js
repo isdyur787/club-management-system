@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { login as loginApi, getCurrentUser } from '@/api/user'
+import { useChatStore } from './chat'
 
 export const useUserStore = defineStore('user', () => {
   // 安全解析 localStorage，防止非法 JSON 导致白屏
@@ -20,6 +21,7 @@ export const useUserStore = defineStore('user', () => {
 
   async function login(loginForm) {
     const res = await loginApi(loginForm)
+    useChatStore().clear()
     token.value = res.data.token
     userInfo.value = {
       userId: res.data.userId,
@@ -43,6 +45,7 @@ export const useUserStore = defineStore('user', () => {
   }
 
   function logout() {
+    useChatStore().clear()
     token.value = ''
     userInfo.value = null
     roles.value = []

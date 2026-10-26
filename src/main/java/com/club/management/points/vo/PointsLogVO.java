@@ -7,6 +7,9 @@ import java.time.LocalDateTime;
 @Data
 public class PointsLogVO {
 
+    private Long userId;
+    private String realName;
+
     private Long id;
 
     private Integer points;

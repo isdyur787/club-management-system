@@ -3,7 +3,10 @@
     <el-card class="chat-container">
       <template #header>
         <div class="chat-header">
-          <span>AI 知识助手</span>
+          <div>
+            <span>AI 知识助手</span>
+            <p class="session-note">本次登录的对话会保留，退出登录后清空</p>
+          </div>
           <div class="header-actions">
             <el-tag v-if="streaming" type="success" effect="plain" size="small">流式输出中</el-tag>
             <el-select v-model="currentClubId" placeholder="选择社团" size="small" style="width: 150px">
@@ -48,25 +51,25 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, watch } from 'vue'
 import { Loading } from '@element-plus/icons-vue'
 import { aiChat } from '@/api/ai'
 import { listClubs } from '@/api/club'
+import { useChatStore } from '@/store/chat'
+import { useUserStore } from '@/store'
 
+const userStore = useUserStore()
+const chatStore = useChatStore()
+chatStore.initialize(userStore.userInfo?.userId ?? userStore.userInfo?.id)
 const messagesRef = ref(null)
-const messages = ref([])
+const currentClubId = computed({ get: () => chatStore.currentClubId, set: id => chatStore.selectClub(id) })
+const conversation = computed(() => chatStore.getConversation(currentClubId.value))
+const messages = computed(() => conversation.value.messages)
 const inputMessage = ref('')
-const loading = ref(false)
+const loading = computed(() => conversation.value.loading)
 const streaming = ref(false)
-const sessionId = ref(null)
-const currentClubId = ref(1)
 const statusMessage = ref('')
 const clubList = ref([])
-
-watch(currentClubId, () => {
-  sessionId.value = null
-  messages.value = []
-})
 
 const scrollToBottom = async () => {
   await nextTick()
@@ -122,51 +125,27 @@ const formatContent = (content) => {
 
 const sendMessage = async () => {
   const msg = inputMessage.value.trim()
-  if (!msg || loading.value) return
-
-  messages.value.push({ role: 'user', content: msg })
+  if (!msg || loading.value || !currentClubId.value) return
   inputMessage.value = ''
-  loading.value = true
-  streaming.value = false
   statusMessage.value = '正在分析您的问题...'
-  scrollToBottom()
-
-  try {
-    const response = await aiChat({
-      clubId: currentClubId.value,
-      sessionId: sessionId.value,
-      message: msg
-    })
-    sessionId.value = response.data.sessionId
-    messages.value.push({
-      role: 'assistant',
-      content: response.data.answer,
-      sources: response.data.sources || []
-    })
-  } catch (e) {
-    messages.value.push({
-      role: 'assistant',
-      content: '抱歉，服务暂时不可用，请稍后重试。'
-    })
-  } finally {
-    loading.value = false
-    streaming.value = false
-    statusMessage.value = ''
-    scrollToBottom()
-  }
+  await chatStore.sendMessage(currentClubId.value, msg, aiChat)
+  statusMessage.value = ''
 }
+
+watch(() => [currentClubId.value, messages.value.length, loading.value], scrollToBottom)
 
 // 加载社团列表
 onMounted(async () => {
   try {
     const res = await listClubs({ pageNum: 1, pageSize: 100 })
     clubList.value = res.data?.list || [{ id: 1, clubName: '默认社团' }]
-    if (clubList.value.length > 0) {
+    if (clubList.value.length > 0 && !clubList.value.some(club => club.id === currentClubId.value)) {
       currentClubId.value = clubList.value[0].id
     }
   } catch (e) {
     clubList.value = [{ id: 1, clubName: '默认社团' }]
   }
+  scrollToBottom()
 })
 
 </script>
@@ -181,6 +160,11 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+.session-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #909399;
 }
 .header-actions {
   display: flex;

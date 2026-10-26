@@ -38,7 +38,8 @@ class Guardrails:
     ]
 
     TOPIC_KEYWORDS = [
-        "社团", "活动", "签到", "报名", "积分", "打卡", "报告", "审核", "汇编", "成员"
+        "社团", "活动", "签到", "报名", "积分", "打卡", "报告", "审核", "汇编", "成员",
+        "知识库", "章程", "招新", "社员", "入社", "社费", "社规", "协会", "英语角"
     ]
 
     def __init__(self, rate_limit_per_minute: int = 20):
@@ -71,6 +72,10 @@ class Guardrails:
             return False, "请输入您的问题"
 
         if any(keyword in query_text for keyword in self.TOPIC_KEYWORDS):
+            return True, ""
+
+        # 社团名称常以“社”结尾（如街舞社、电竞社），不一定包含“社团”。
+        if re.search(r"[\u4e00-\u9fffA-Za-z0-9]{2,20}社", query_text):
             return True, ""
 
         return False, "当前助手仅支持社团管理相关问题（活动/签到/报名/积分/报告等）"

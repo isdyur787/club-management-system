@@ -3,6 +3,70 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.club.management.points.mapper.PointsLogMapper">
 
+    <select id="selectAvailableClubs" resultType="com.club.management.points.vo.PointsClubVO">
+        SELECT c.id, c.club_name
+        FROM club_info c
+        WHERE c.deleted = 0 AND c.approval_status = 1
+          AND (#{allClubs} = 1 OR EXISTS (
+              SELECT 1 FROM club_member cm
+              WHERE cm.club_id = c.id AND cm.user_id = #{userId}
+                AND cm.status = 1 AND cm.deleted = 0
+          ))
+        ORDER BY c.id
+    </select>
+
+    <sql id="activeScorers">
+        FROM member_points_log p
+        JOIN club_member cm ON cm.club_id = p.club_id AND cm.user_id = p.user_id
+          AND cm.status = 1 AND cm.deleted = 0
+        JOIN sys_user u ON u.id = p.user_id AND u.status = 1 AND u.deleted = 0
+        WHERE p.club_id = #{clubId}
+        GROUP BY p.user_id
+    </sql>
+
+    <select id="selectPointsRanking" resultType="map">
+        SELECT p.user_id, SUM(p.points) AS total_points
+        <include refid="activeScorers" />
+        ORDER BY total_points DESC, p.user_id ASC
+        LIMIT #{top}
+    </select>
+
+    <select id="selectUserRank" resultType="int">
+        SELECT COALESCE(MAX(ranked.position), 0)
+        FROM (
+            SELECT p.user_id, ROW_NUMBER() OVER (ORDER BY SUM(p.points) DESC, p.user_id ASC) AS position
+            <include refid="activeScorers" />
+        ) ranked
+        WHERE ranked.user_id = #{userId}
+    </select>
+
+    <select id="selectClubOverview" resultType="map">
+        SELECT COALESCE(SUM(p.points), 0) AS club_total_points,
+               COALESCE(SUM(CASE WHEN p.created_at &gt;= #{monthStart} AND p.created_at &lt; #{monthEnd}
+                                 THEN p.points ELSE 0 END), 0) AS month_points,
+               COUNT(DISTINCT cm.user_id) AS scored_member_count
+        FROM member_points_log p
+        LEFT JOIN club_member cm ON cm.club_id = p.club_id AND cm.user_id = p.user_id
+          AND cm.status = 1 AND cm.deleted = 0
+        WHERE p.club_id = #{clubId}
+    </select>
+
+    <select id="selectDailyPoints" resultType="com.club.management.points.vo.PointsSummaryVO$DailyPoint">
+        SELECT DATE_FORMAT(created_at, '%Y-%m-%d') AS date, SUM(points) AS points
+        FROM member_points_log
+        WHERE club_id = #{clubId} AND created_at &gt;= #{start} AND created_at &lt; #{end}
+        GROUP BY DATE_FORMAT(created_at, '%Y-%m-%d')
+        ORDER BY date
+    </select>
+
+    <select id="selectSourcePoints" resultType="com.club.management.points.vo.PointsSummaryVO$SourcePoint">
+        SELECT reason, SUM(points) AS points, COUNT(*) AS entry_count
+        FROM member_points_log
+        WHERE club_id = #{clubId}
+        GROUP BY reason
+        ORDER BY points DESC, reason
+    </select>
+
     <insert id="batchInsert" parameterType="java.util.List">
         INSERT INTO member_points_log (club_id, user_id, points, reason, description, related_activity_id, related_checkin_id, created_at)
         VALUES

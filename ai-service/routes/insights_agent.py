@@ -196,8 +196,8 @@ async def generate_insight(request: InsightRequest):
         graph = _get_insight_graph()
         config = {"configurable": {"thread_id": f"insight:{request.club_id}:{request.year or 'current'}"}}
 
-        state = graph.invoke({"club_id": request.club_id, "year": request.year}, config=config)
-        final = state.get("final") or {}
+        state = graph.invoke({"club_id": request.club_id, "year": request.year, "final": {}}, config=config)
+        final = state.get("final") or {"status": "PENDING_REVIEW", **(state.get("draft") or {})}
         data_points = {}
         if state.get("year") and state.get("draft"):
             summary = (state.get("draft") or {}).get("summary", "")
@@ -220,7 +220,7 @@ async def generate_insight(request: InsightRequest):
         return {
             "club_id": request.club_id,
             "year": state.get("year"),
-            "status": "CONFIRMED",
+            "status": final.get("status", "PENDING_REVIEW"),
             "summary": final.get("summary", ""),
             "trends": final.get("trends", []),
             "recommendations": final.get("recommendations", []),
@@ -233,3 +233,18 @@ async def generate_insight(request: InsightRequest):
     except Exception as e:
         logger.error(f"Insight generation error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="服务内部错误，请稍后重试")
+
+
+class InsightReviewRequest(InsightRequest):
+    approved: bool
+    feedback: str = ""
+
+
+@router.post("/review")
+async def review_insight(request: InsightReviewRequest):
+    graph = _get_insight_graph()
+    config = {"configurable": {"thread_id": f"insight:{request.club_id}:{request.year or 'current'}"}}
+    if not graph.get_state(config).next:
+        raise HTTPException(status_code=400, detail="没有待审核的数据洞察，请先生成")
+    state = graph.invoke(Command(resume={"approved": request.approved, "feedback": request.feedback}), config=config)
+    return {"club_id": request.club_id, "year": state.get("year"), **state.get("final", {})}

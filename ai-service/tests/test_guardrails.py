@@ -102,6 +102,17 @@ class TestGuardrailsEdgeCases(unittest.TestCase):
         self.assertFalse(allowed)
         self.assertIn("社团管理", reason)
 
+    def test_topic_guard_allows_club_knowledge_questions(self):
+        for question in [
+            "请根据街舞社知识库说明第一次体验课需要准备什么？",
+            "街舞社没有基础可以加入吗？",
+            "电竞社有哪些非选手岗位？",
+            "英语角口语练习前需要准备什么？",
+            "书法协会的招新要求是什么？",
+        ]:
+            with self.subTest(question=question):
+                self.assertTrue(self.g.check_topic_allowed(question)[0])
+
     def test_rate_limit_blocks_when_exceeded(self):
         g = Guardrails(rate_limit_per_minute=2)
         self.assertTrue(g.check_rate_limit("user1")[0])

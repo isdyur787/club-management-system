@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import time
 import urllib.request
 
 import dev
@@ -22,7 +23,7 @@ def setup(env):
             candidate = "/opt/homebrew/opt/python@3.12/bin/python3.12"
         subprocess.run([candidate, "-m", "venv", str(AI / ".venv")], check=True)
     subprocess.run([str(PYTHON), "-m", "pip", "install", "-r", str(AI / "requirements.txt")], check=True)
-    subprocess.run([str(PYTHON), "-c", "from rag.latency import warmup_models; warmup_models()"],
+    subprocess.run([str(PYTHON), "-c", "from rag.ingestion import get_embedding_model; from rag.reranker import get_reranker; get_embedding_model().encode(['社团']); get_reranker().compute_score([['社团','社团管理']])"],
                    cwd=AI, env=env, check=True)
 
 
@@ -56,6 +57,12 @@ def main():
         if info:
             import signal
             os.kill(info["pid"], signal.SIGTERM)
+            deadline = time.monotonic() + 30
+            while dev.process_info("ai") and time.monotonic() < deadline:
+                time.sleep(.2)
+            if dev.process_info("ai"):
+                raise RuntimeError("AI 服务尚未退出，请查看 .runtime/ai.log")
+            (dev.RUNTIME / "ai.process.json").unlink(missing_ok=True)
             print("已停止 AI 服务")
         else:
             print("没有脚本启动的 AI 进程")

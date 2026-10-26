@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""本地开发：独立 MySQL / Redis、Java 后端和 Vue 前端，不启动 AI。"""
+"""本地开发：MySQL / Redis、Java 后端、Vue 前端，配置密钥后自动启动 AI。"""
 import argparse
 import hashlib
 import json
@@ -241,13 +241,16 @@ def start(env, setup_only=False):
     front_env = {**env, **json.loads(front_config.stdout)}
     launch("frontend", [executable("node"), WEB / "node_modules/vite/bin/vite.js"],
            int(front_env.get("VITE_PORT", "5173")), front_env, WEB)
+    ai_enabled = bool(env.get("LLM_API_KEY") and not env["LLM_API_KEY"].startswith("your-") and env.get("AI_INTERNAL_API_KEY"))
+    if ai_enabled:
+        subprocess.run([sys.executable, str(ROOT / "scripts/ai.py"), "start"], cwd=ROOT, env=env, check=True)
     print(f"\n前端：http://localhost:{front_env.get('VITE_PORT', '5173')}/\n"
           f"接口文档：http://localhost:{env.get('SERVER_PORT', '8081')}/swagger-ui/index.html\n"
-          "测试账号：admin / 123456\n本次未启动 Python AI 服务。", flush=True)
+          "测试账号：admin / 123456\n" + ("AI：http://127.0.0.1:8000/health" if ai_enabled else "AI 未配置，未启动 Python 服务。"), flush=True)
 
 
-def stop():
-    for name in ("frontend", "backend", "redis", "mysql"):
+def stop(names=("ai", "frontend", "backend", "redis", "mysql")):
+    for name in names:
         info = process_info(name)
         if info:
             os.kill(info["pid"], signal.SIGTERM)
@@ -261,7 +264,7 @@ def stop():
 
 
 def status():
-    for name in ("mysql", "redis", "backend", "frontend"):
+    for name in ("mysql", "redis", "backend", "frontend", "ai"):
         info = process_info(name)
         ready = info and port_open(info["port"])
         print(f"{name}: " + (f"运行中，端口 {info['port']}，PID {info['pid']}" if ready else "未运行/未就绪"))
@@ -269,13 +272,15 @@ def status():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("setup", "start", "stop", "status"))
+    parser.add_argument("command", choices=("setup", "start", "stop", "stop-backend", "status"))
     args = parser.parse_args()
     try:
         if args.command in ("setup", "start"):
             start(environment(create=True), setup_only=args.command == "setup")
         elif args.command == "stop":
             stop()
+        elif args.command == "stop-backend":
+            stop(("backend",))
         else:
             status()
     except (RuntimeError, subprocess.CalledProcessError, OSError, ValueError) as error:

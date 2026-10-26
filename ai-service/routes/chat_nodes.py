@@ -130,7 +130,9 @@ def self_check_node(state: ChatState) -> dict:
     answer = state.get("answer", "")
     fine_results = state.get("fine_results", [])
 
-    if not fine_results or "AI 生成暂不可用" in answer:
+    if state.get("error") or "AI 生成暂不可用" in answer:
+        return {"check_passed": False, "check_confidence": 0.0}
+    if not fine_results:
         return {"check_passed": True, "check_confidence": 1.0}
 
     try:
