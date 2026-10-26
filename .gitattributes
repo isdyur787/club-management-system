@@ -1,0 +1,33 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Java
+*.java text diff=java
+*.xml text
+*.yml text
+*.properties text
+
+# Python
+*.py text diff=python
+
+# JavaScript / Vue
+*.js text
+*.vue text
+*.json text
+*.scss text
+
+# SQL
+*.sql text
+
+# Markdown
+*.md text diff=markdown
+
+# Shell scripts
+*.sh text eol=lf
+*.bat text eol=crlf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.safetensors binary
+*.bin binary

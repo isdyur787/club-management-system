@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.club.management.points.mapper.PointsLogMapper">
+
+    <insert id="batchInsert" parameterType="java.util.List">
+        INSERT INTO member_points_log (club_id, user_id, points, reason, description, related_activity_id, related_checkin_id, created_at)
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.clubId}, #{item.userId}, #{item.points}, #{item.reason}, #{item.description},
+             #{item.relatedActivityId}, #{item.relatedCheckinId}, NOW())
+        </foreach>
+    </insert>
+
+</mapper>

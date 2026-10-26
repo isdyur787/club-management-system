@@ -1,0 +1,97 @@
+spring:
+  config:
+    import: optional:file:.env[.properties]
+  application:
+    name: club-management
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 300000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    default-property-inclusion: non_null
+
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+  task:
+    execution:
+      pool:
+        core-size: 4
+        max-size: 8
+        queue-capacity: 100
+      thread-name-prefix: async-executor-
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+jwt:
+  expiration: 86400000
+
+cors:
+  allowed-origins: ${CORS_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+
+security:
+  login:
+    max-fail-count: 5
+    lock-minutes: 15
+  rate-limit:
+    sign-in:
+      limit: 1
+      window: 1000
+    login:
+      limit: 10
+      window: 60000
+  password:
+    min-length: 8
+    max-length: 20
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+ai:
+  service:
+    timeout: ${AI_SERVICE_TIMEOUT:120000}
+    internal-key: ${AI_INTERNAL_API_KEY:}
+
+points:
+  adopted-suggestion: 5
+  sign-in: 1
+  checkin-reflection: 2
+  checkin-photo: 1
+  checkin-suggestion: 1
+  sign-out: 1
+
+score:
+  weights:
+    activity-max-count: 12.0
+    activity-weight: 40.0
+    max-participants: 50.0
+    participation-weight: 30.0
+    max-type-count: 3.0
+    diversity-weight: 20.0
+    member-activity-score: 5.0
+

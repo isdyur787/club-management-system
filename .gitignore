@@ -1,0 +1,56 @@
+# ========== 环境与凭证 ==========
+.env
+.env.local
+.env.*.local
+
+# ========== Python ==========
+*.pyc
+__pycache__/
+.pytest_cache/
+*.egg-info/
+.venv/
+venv/
+
+# ========== Node ==========
+node_modules/
+dist/
+.npm
+
+# ========== Java ==========
+target/
+*.class
+
+# ========== IDE ==========
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+
+# ========== 数据与缓存 ==========
+data/chroma/
+data/uploads/
+data/reports/
+ai-service/data/
+dump.rdb
+
+# ========== AI 模型权重（可从 HuggingFace/ModelScope 重新下载） ==========
+*.safetensors
+*.bin
+*.onnx
+*.bpe.model
+ai-service/models/bge-reranker-v2-m3/
+
+# ========== 系统文件 ==========
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ========== 日志 ==========
+*.log
+
+# ========== Reasonix ==========
+.reasonix/
+
+# 项目独立的本地进程、数据库与工具
+.runtime/

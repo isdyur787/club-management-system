@@ -1,0 +1,130 @@
+{
+  "description": "RAG 问答评估测试集（v2，匹配新入库数据）",
+  "cases": [
+    {
+      "id": 1,
+      "category": "fact",
+      "question": "Python Workshop 活动的平均评分是多少？",
+      "club_id": 1,
+      "expected_keywords": ["4.3", "评分"],
+      "expected_doc_type": "activity_report"
+    },
+    {
+      "id": 2,
+      "category": "fact",
+      "question": "算法竞赛集训营有多少人参与？",
+      "club_id": 1,
+      "expected_keywords": ["28", "参与"],
+      "expected_doc_type": "activity_report"
+    },
+    {
+      "id": 3,
+      "category": "fact",
+      "question": "编程技术社的社长职责是什么？",
+      "club_id": 1,
+      "expected_keywords": ["社长", "规划"],
+      "expected_doc_type": "charter"
+    },
+    {
+      "id": 4,
+      "category": "fact",
+      "question": "如何加入社团？",
+      "club_id": 1,
+      "expected_keywords": ["报名", "申请"],
+      "expected_doc_type": "faq"
+    },
+    {
+      "id": 5,
+      "category": "fact",
+      "question": "新生篮球赛的参与人数是多少？",
+      "club_id": 2,
+      "expected_keywords": ["55", "参与"],
+      "expected_doc_type": "activity_report"
+    },
+    {
+      "id": 6,
+      "category": "summary",
+      "question": "Python Workshop 活动中成员反映了什么问题？",
+      "club_id": 1,
+      "expected_keywords": ["环境", "配置", "进度"],
+      "expected_doc_type": "activity_report"
+    },
+    {
+      "id": 7,
+      "category": "summary",
+      "question": "成员在 Python Workshop 中主要收获了什么？",
+      "club_id": 1,
+      "expected_keywords": ["收获", "Python"],
+      "expected_doc_type": "checkin_compilation"
+    },
+    {
+      "id": 8,
+      "category": "summary",
+      "question": "算法集训营有什么改进建议？",
+      "club_id": 1,
+      "expected_keywords": ["分级", "图论"],
+      "expected_doc_type": "activity_report"
+    },
+    {
+      "id": 9,
+      "category": "cross_club",
+      "question": "篮球协会的章程包含哪些内容？",
+      "club_id": 2,
+      "expected_keywords": ["组织架构", "成员管理"],
+      "expected_doc_type": "charter"
+    },
+    {
+      "id": 10,
+      "category": "cross_club",
+      "question": "摄影协会秋日外拍活动的评分如何？",
+      "club_id": 3,
+      "expected_keywords": ["4.7", "评分"],
+      "expected_doc_type": "activity_report"
+    },
+    {
+      "id": 11,
+      "category": "out_of_scope",
+      "question": "学校食堂怎么样？",
+      "club_id": 1,
+      "expected_keywords": [],
+      "expected_doc_type": null,
+      "expected_behavior": "reject"
+    },
+    {
+      "id": 12,
+      "category": "out_of_scope",
+      "question": "今天天气如何？",
+      "club_id": 1,
+      "expected_keywords": [],
+      "expected_doc_type": null,
+      "expected_behavior": "reject"
+    },
+    {
+      "id": 13,
+      "category": "out_of_scope",
+      "question": "帮我写一篇论文",
+      "club_id": 1,
+      "expected_keywords": [],
+      "expected_doc_type": null,
+      "expected_behavior": "reject"
+    },
+    {
+      "id": 14,
+      "category": "vague",
+      "question": "给我一些建议",
+      "club_id": 1,
+      "expected_keywords": [],
+      "expected_doc_type": null,
+      "expected_behavior": "partial"
+    },
+    {
+      "id": 15,
+      "category": "vague",
+      "question": "有什么活动？",
+      "club_id": 1,
+      "expected_keywords": ["活动"],
+      "expected_doc_type": null,
+      "expected_behavior": "partial"
+    }
+  ]
+}

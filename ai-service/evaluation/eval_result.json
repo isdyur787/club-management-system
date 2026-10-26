@@ -1,0 +1,191 @@
+{
+  "timestamp": "2026-06-24 01:38:36",
+  "summary": {
+    "total_cases": 10,
+    "retrieval_hit_rate": 0.625,
+    "faithful_rate": 0.375,
+    "avg_confidence": 0.594,
+    "reject_rate": 0.0
+  },
+  "retrieval_results": [
+    {
+      "case_id": 1,
+      "question": "Web Workshop 活动的参与人数是多少？",
+      "coarse_count": 10,
+      "fine_count": 3,
+      "retrieval_hit": true,
+      "elapsed_seconds": 15.91,
+      "top_doc_type": "activity_report"
+    },
+    {
+      "case_id": 2,
+      "question": "Web Workshop 活动的平均评分是多少？",
+      "coarse_count": 10,
+      "fine_count": 3,
+      "retrieval_hit": true,
+      "elapsed_seconds": 15.1,
+      "top_doc_type": "activity_report"
+    },
+    {
+      "case_id": 3,
+      "question": "成员对 Web Workshop 活动有什么建议？",
+      "coarse_count": 0,
+      "fine_count": 0,
+      "retrieval_hit": false,
+      "elapsed_seconds": 0.08,
+      "top_doc_type": ""
+    },
+    {
+      "case_id": 4,
+      "question": "成员在活动中主要收获了什么？",
+      "coarse_count": 0,
+      "fine_count": 0,
+      "retrieval_hit": false,
+      "elapsed_seconds": 0.08,
+      "top_doc_type": ""
+    },
+    {
+      "case_id": 5,
+      "question": "社团的管理制度是什么？",
+      "coarse_count": 10,
+      "fine_count": 3,
+      "retrieval_hit": true,
+      "elapsed_seconds": 15.72,
+      "top_doc_type": "charter"
+    },
+    {
+      "case_id": 6,
+      "question": "学校食堂怎么样？",
+      "coarse_count": 10,
+      "fine_count": 3,
+      "retrieval_hit": false,
+      "elapsed_seconds": 15.76,
+      "top_doc_type": "charter"
+    },
+    {
+      "case_id": 7,
+      "question": "今天天气如何？",
+      "coarse_count": 10,
+      "fine_count": 3,
+      "retrieval_hit": false,
+      "elapsed_seconds": 15.49,
+      "top_doc_type": "activity_report"
+    },
+    {
+      "case_id": 8,
+      "question": "活动的打卡截止时间是什么时候？",
+      "coarse_count": 10,
+      "fine_count": 3,
+      "retrieval_hit": true,
+      "elapsed_seconds": 15.9,
+      "top_doc_type": "activity_report"
+    },
+    {
+      "case_id": 9,
+      "question": "成员反映活动中存在什么问题？",
+      "coarse_count": 0,
+      "fine_count": 0,
+      "retrieval_hit": false,
+      "elapsed_seconds": 0.1,
+      "top_doc_type": ""
+    },
+    {
+      "case_id": 10,
+      "question": "Web Workshop 活动在哪个地点举办？",
+      "coarse_count": 10,
+      "fine_count": 3,
+      "retrieval_hit": true,
+      "elapsed_seconds": 15.74,
+      "top_doc_type": "activity_report"
+    }
+  ],
+  "generation_results": [
+    {
+      "case_id": 1,
+      "question": "Web Workshop 活动的参与人数是多少？",
+      "answer_preview": "根据提供的参考资料，Web Workshop 活动的参与人数存在两个不同的统计：\n\n- **打卡提交数**：2 人 [来源1]\n- **参与人数统计**：0 人（但收到了2份有效反馈）[来源2]\n\n因",
+      "keywords_found": [
+        "2",
+        "参与人数"
+      ],
+      "keyword_hit_rate": 1.0,
+      "faithful": true,
+      "confidence": 0.9
+    },
+    {
+      "case_id": 2,
+      "question": "Web Workshop 活动的平均评分是多少？",
+      "answer_preview": "根据提供的资料，Web Workshop 活动的平均满意度评分为 **4.5 / 5.0** [来源1]。",
+      "keywords_found": [
+        "4",
+        "评分"
+      ],
+      "keyword_hit_rate": 1.0,
+      "faithful": true,
+      "confidence": 1.0
+    },
+    {
+      "case_id": 3,
+      "rejected": false,
+      "keywords_found": [],
+      "faithful": false
+    },
+    {
+      "case_id": 4,
+      "rejected": false,
+      "keywords_found": [],
+      "faithful": false
+    },
+    {
+      "case_id": 5,
+      "question": "社团的管理制度是什么？",
+      "answer_preview": "根据提供的参考资料，TestClub2的社团管理制度主要体现在其社团章程中，具体包括成员管理和活动管理两大部分。\n\n**1. 成员管理**\n*   **入社条件**：需对社团活动有浓厚兴趣、愿意遵守章",
+      "keywords_found": [
+        "章程",
+        "管理"
+      ],
+      "keyword_hit_rate": 1.0,
+      "faithful": false,
+      "confidence": 0.9
+    },
+    {
+      "case_id": 6,
+      "rejected": false,
+      "correct_reject": false
+    },
+    {
+      "case_id": 7,
+      "rejected": false,
+      "correct_reject": false
+    },
+    {
+      "case_id": 8,
+      "question": "活动的打卡截止时间是什么时候？",
+      "answer_preview": "基于提供的参考资料，其中没有提及活动的打卡截止时间。关于活动的详细信息，资料仅包含活动时间（2026-10-01 10:00:00 ~ 16:00:00）、地点、预算等基本要素 [来源1]，以及社团对",
+      "keywords_found": [
+        "截止"
+      ],
+      "keyword_hit_rate": 1.0,
+      "faithful": false,
+      "confidence": 0.95
+    },
+    {
+      "case_id": 9,
+      "rejected": false,
+      "keywords_found": [],
+      "faithful": false
+    },
+    {
+      "case_id": 10,
+      "question": "Web Workshop 活动在哪个地点举办？",
+      "answer_preview": "Web Workshop 活动在 Room 201 举办。 [来源1]",
+      "keywords_found": [
+        "Room",
+        "201"
+      ],
+      "keyword_hit_rate": 1.0,
+      "faithful": true,
+      "confidence": 1.0
+    }
+  ]
+}

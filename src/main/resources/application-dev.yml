@@ -1,0 +1,36 @@
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${SERVER_PORT:8081}
+
+spring:
+  datasource:
+    url: ${MYSQL_URL:jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:club_management}?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:}
+
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      database: ${REDIS_DB:0}
+      password: ${REDIS_PASSWORD:}
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+
+jwt:
+  secret: ${JWT_SECRET:dev-jwt-secret-key-must-be-at-least-256-bits-for-hs256-algorithm}
+
+ai:
+  service:
+    base-url: ${AI_SERVICE_URL:http://127.0.0.1:8000}
+
+logging:
+  level:
+    root: info
+    com.club.management: info
+    com.baomidou.mybatisplus: info
+    org.springframework.security: warn
+    org.springframework.web: info
