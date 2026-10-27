@@ -50,7 +50,7 @@ desktop.ini
 *.log
 
 # ========== 临时验证产物 ==========
-screenshots/test-*.png
+screenshots/
 ai-service/evaluation/eval_result.json
 
 # ========== Reasonix ==========

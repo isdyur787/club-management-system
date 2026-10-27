@@ -43,11 +43,23 @@
 
 ### 本机一键运行（前后端分离）
 
+安装下方列出的运行依赖后，在项目根目录使用对应入口：
+
+| 系统 | 启动 | 停止（保留数据） |
+| --- | --- | --- |
+| Windows | 双击 `start.cmd` | 双击 `stop.cmd` |
+| macOS | 双击 `start.command` | 双击 `stop.command` |
+| macOS / Linux 终端 | `./start.sh` | `./stop.sh` |
+
+Windows 可使用已安装的 Redis 兼容程序或 Memurai；MySQL 和 Redis 工具路径可在 `.env` 中配置。脚本会检查依赖，缺少软件时给出提示，不会自动安装系统软件。Mac 下载后如果失去执行权限，执行 `chmod +x *.command *.sh scripts/run.sh`。
+
+也可以直接使用公共启动脚本：
+
 ```bash
 python3 scripts/dev.py start
 ```
 
-访问 `http://localhost:5173`，管理员账号为 `admin / 123456`。该命令独立启动 Vue 前端、Java 后端及项目专用 MySQL / Redis，不启动 Python AI 服务。首次运行自动配置 `.env` 并初始化数据库；停止使用 `python3 scripts/dev.py stop`，数据保留。完整说明见 [本地运行与部署配置](docs/local-development.md)。
+访问 `http://localhost:5173`，管理员账号为 `admin / 123456`。入口会启动 Vue 前端、Java 后端及项目专用 MySQL / Redis；配置了有效模型密钥、内部密钥和 Python AI 环境时，也会启动 AI。首次运行自动生成 `.env`、初始化数据库、导入 SQL、安装前端依赖和构建后端，后续保留已有数据。完整说明及 Windows 实机验证限制见 [本地运行与部署配置](docs/local-development.md)。
 
 下面是使用已有数据库、手动配置所有服务的步骤：
 

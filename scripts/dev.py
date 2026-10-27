@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """本地开发：MySQL / Redis、Java 后端、Vue 前端，配置密钥后自动启动 AI。"""
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -19,6 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 WEB = ROOT / "club-management-web"
 RUNTIME = ROOT / ".runtime"
 JAR = ROOT / "target/club-management-1.0.0-SNAPSHOT.jar"
+WINDOWS = os.name == "nt"
 
 
 def read_env(path):
@@ -45,6 +47,8 @@ def environment(create=False):
             f"JWT_SECRET={jwt}\n"
             "CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173\n"
             "AI_SERVICE_URL=http://127.0.0.1:8000\n"
+            "REDIS_URL=redis://127.0.0.1:6379/1\n",
+            encoding="utf-8",
         )
         path.chmod(0o600)
     env = {**read_env(path), **os.environ}
@@ -55,18 +59,85 @@ def environment(create=False):
     return env
 
 
-def executable(name, *candidates):
-    found = shutil.which(name)
-    if found:
-        return found
+def executable(name, *candidates, env=None):
+    env = os.environ if env is None else env
+    names = [name + ".exe", name + ".cmd"] if WINDOWS else [name]
+    if WINDOWS and name in ("redis-server", "redis-cli"):
+        names.append("memurai.exe" if name == "redis-server" else "memurai-cli.exe")
+    key = ("MYSQL_BIN" if name.startswith("mysql") else "REDIS_BIN" if name.startswith("redis")
+           else "JAVA_HOME" if name == "java" else "MAVEN_HOME" if name == "mvn" else "")
+    configured = env.get(key) or (env.get("M2_HOME") if name == "mvn" else None)
+    if configured:
+        directory = Path(configured) / "bin" if name in ("java", "mvn") else Path(configured)
+        for filename in names:
+            candidate = directory / filename
+            if candidate.is_file():
+                return str(candidate)
+        raise RuntimeError(f"{key} 指定的目录中未找到 {name}：{directory}")
+    for filename in [name] + names:
+        found = shutil.which(filename, path=env.get("PATH", ""))
+        if found:
+            return found
+    directories = []
+    if name.startswith("mysql"):
+        if not WINDOWS:
+            directories += ["/usr/local/mysql/bin", "/opt/homebrew/bin"]
+        if WINDOWS:
+            program_files = Path(env.get("PROGRAMFILES", env.get("ProgramFiles", r"C:\Program Files")))
+            directories += sorted((program_files / "MySQL").glob("MySQL Server */bin"), reverse=True)
+    elif name.startswith("redis"):
+        if not WINDOWS:
+            directories += ["/opt/homebrew/bin", "/usr/local/bin"]
+        directories += sorted((RUNTIME / "tools").glob("redis-*/src"), reverse=True)
+        if WINDOWS:
+            directories += [Path(env.get("PROGRAMFILES", env.get("ProgramFiles", r"C:\Program Files"))) / "Memurai"]
+    elif name == "mvn":
+        if not WINDOWS:
+            directories += ["/Applications/IntelliJ IDEA.app/Contents/plugins/maven/lib/maven3/bin"]
+        if WINDOWS:
+            jetbrains = Path(env.get("PROGRAMFILES", env.get("ProgramFiles", r"C:\Program Files"))) / "JetBrains"
+            directories += sorted(jetbrains.glob("IntelliJ IDEA*/plugins/maven/lib/maven3/bin"), reverse=True)
+    for directory in directories:
+        if directory:
+            candidates += tuple(Path(directory) / filename for filename in names)
     for candidate in candidates:
         if Path(candidate).is_file():
             return str(candidate)
-    raise RuntimeError(f"未找到 {name}，请安装或加入 PATH。")
+    raise RuntimeError(f"未找到 {name}，请安装并加入 PATH，或在 .env 配置 MYSQL_BIN / REDIS_BIN / JAVA_HOME / MAVEN_HOME。")
+
+
+def run_tool(command, **kwargs):
+    command = [str(arg) for arg in command]
+    # PowerShell 的字面量参数支持带空格、中文和单引号的 .cmd 工具路径。
+    if WINDOWS and Path(command[0]).suffix.lower() in (".cmd", ".bat"):
+        quoted = " ".join("'" + arg.replace("'", "''") + "'" for arg in command)
+        script = "$ErrorActionPreference='Stop'; & " + quoted + "; exit $LASTEXITCODE"
+        encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+        command = ["powershell", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded]
+    return subprocess.run(command, **kwargs)
+
+
+def backend_needs_build():
+    if not JAR.is_file():
+        return True
+    source = ROOT / "src/main"
+    # 目录时间同时覆盖删除文件的情况；清理构建避免旧 class 或资源残留。
+    inputs = [ROOT / "pom.xml", ROOT / "src", source] + list(source.rglob("*"))
+    return any(path.exists() and path.stat().st_mtime > JAR.stat().st_mtime for path in inputs)
+
+
+def check_tools(env):
+    for name in ("mysql", "mysqld", "mysqladmin", "redis-server", "redis-cli", "java", "node", "npm", "mvn"):
+        executable(name, env=env)
+    for name, minimum, option in (("java", 17, "-version"), ("node", 18, "--version")):
+        result = run_tool([executable(name, env=env), option], capture_output=True, text=True, env=env, check=True)
+        match = re.search(r'(?:version\s+"|^v)(\d+)', result.stdout + result.stderr)
+        if not match or int(match.group(1)) < minimum:
+            raise RuntimeError(f"需要 {name} {minimum}+，请检查 JAVA_HOME 和 PATH。")
 
 
 def process_stamp(pid):
-    if os.name == "nt":
+    if WINDOWS:
         command = (
             f"$p = Get-Process -Id {int(pid)} -ErrorAction SilentlyContinue; "
             "if ($p) { $p.StartTime.ToUniversalTime().ToString('o') }"
@@ -84,7 +155,7 @@ def process_stamp(pid):
 def process_info(name):
     path = RUNTIME / f"{name}.process.json"
     if path.exists():
-        info = json.loads(path.read_text())
+        info = json.loads(path.read_text(encoding="utf-8"))
         if info["started"] and process_stamp(info["pid"]) == info["started"]:
             return info
     return None
@@ -104,11 +175,13 @@ def launch(name, command, port, env, cwd=ROOT):
     if port_open(port):
         raise RuntimeError(f"端口 {port} 已被其他进程占用，未启动或停止该进程。")
     with (RUNTIME / f"{name}.log").open("a") as log:
+        options = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS}
+                   if WINDOWS else {"start_new_session": True})
         child = subprocess.Popen([str(arg) for arg in command], cwd=cwd, env=env,
                                  stdin=subprocess.DEVNULL, stdout=log, stderr=log,
-                                 start_new_session=True)
+                                 **options)
     record = {"pid": child.pid, "started": process_stamp(child.pid), "port": port}
-    (RUNTIME / f"{name}.process.json").write_text(json.dumps(record))
+    (RUNTIME / f"{name}.process.json").write_text(json.dumps(record), encoding="utf-8")
     deadline = time.monotonic() + 90
     while time.monotonic() < deadline:
         if child.poll() is not None:
@@ -121,7 +194,7 @@ def launch(name, command, port, env, cwd=ROOT):
 
 
 def sql(env, statement, database=None, password=None, check=True):
-    client = executable("mysql", "/usr/local/mysql/bin/mysql")
+    client = executable("mysql", env=env)
     command = [client, "--no-defaults", "--protocol=TCP", "-h", "127.0.0.1",
                "-P", env.get("MYSQL_PORT", "3307"), "-u", "root",
                "--default-character-set=utf8mb4", "--batch", "--skip-column-names"]
@@ -140,6 +213,16 @@ def sql(env, statement, database=None, password=None, check=True):
     return result
 
 
+def mysql_command(server, env):
+    command = [server, "--no-defaults", f"--datadir={RUNTIME / 'mysql'}", "--bind-address=127.0.0.1",
+               f"--port={env.get('MYSQL_PORT', '3307')}", "--mysqlx=0", f"--pid-file={RUNTIME / 'mysql.pid'}"]
+    if WINDOWS:
+        command.append("--console")
+    else:
+        command.append(f"--socket=/tmp/club-{hashlib.sha256(str(ROOT).encode()).hexdigest()[:12]}.sock")
+    return command
+
+
 def start_mysql(env):
     if env.get("MYSQL_HOST", "127.0.0.1") not in ("127.0.0.1", "localhost") or env.get("MYSQL_USER", "root") != "root":
         raise RuntimeError("本脚本只管理项目自带的本地 MySQL；外部数据库请按 docs/local-development.md 手动启动两端。")
@@ -152,19 +235,19 @@ def start_mysql(env):
                 or url.path.lstrip("/") != env.get("MYSQL_DATABASE", "club_management")):
             raise RuntimeError("MYSQL_URL 与本地 MYSQL_HOST/PORT/DATABASE 不一致，未操作数据库。"
                                "请统一配置，或按 docs/local-development.md 手动启动两端。")
-    server = executable("mysqld", "/usr/local/mysql/bin/mysqld")
+    server = executable("mysqld", env=env)
     data = RUNTIME / "mysql"
-    if not (data / "auto.cnf").exists():
+    initialized = not (data / "auto.cnf").exists()
+    if initialized:
         with (RUNTIME / "mysql-initialize.log").open("a") as log:
             subprocess.run([server, "--no-defaults", "--initialize-insecure", f"--datadir={data}"],
                            stdout=log, stderr=log, check=True)
     port = int(env.get("MYSQL_PORT", "3307"))
-    sock = f"/tmp/club-{hashlib.sha256(str(ROOT).encode()).hexdigest()[:12]}.sock"
-    launch("mysql", [server, "--no-defaults", f"--datadir={data}", "--bind-address=127.0.0.1",
-                     f"--port={port}", f"--socket={sock}", "--mysqlx=0",
-                     f"--pid-file={RUNTIME / 'mysql.pid'}"], port, env)
+    launch("mysql", mysql_command(server, env), port, env)
     # 仅对本脚本新建的私有实例设置 root 密码，不访问系统 MySQL。
     if sql(env, "SELECT 1;", check=False).returncode:
+        if not initialized:
+            raise RuntimeError("已有项目数据库认证失败，请核对 .env 中的 MYSQL_PASSWORD；未重置密码或数据库。")
         password = env["MYSQL_PASSWORD"].replace("\\", "\\\\").replace("'", "''")
         sql(env, f"ALTER USER 'root'@'localhost' IDENTIFIED BY '{password}';", password="")
     database = env.get("MYSQL_DATABASE", "club_management")
@@ -198,48 +281,50 @@ def start_mysql(env):
 def start_redis(env):
     if env.get("REDIS_HOST", "127.0.0.1") not in ("127.0.0.1", "localhost"):
         raise RuntimeError("本脚本只管理本机 Redis；外部 Redis 请手动启动两端。")
-    candidates = sorted((RUNTIME / "tools").glob("redis-*/src/redis-server"), reverse=True)
-    server = executable("redis-server", "/opt/homebrew/bin/redis-server", *candidates)
+    server = executable("redis-server", env=env)
     directory = RUNTIME / "redis"
     directory.mkdir(exist_ok=True)
     port = int(env.get("REDIS_PORT", "6379"))
     config = RUNTIME / "redis.conf"
-    config.write_text(f'bind 127.0.0.1\nport {port}\nprotected-mode yes\ndir "{directory}"\n'
+    config.write_text(f'bind 127.0.0.1\nport {port}\nprotected-mode yes\ndir "{directory.as_posix()}"\n'
                       'appendonly yes\ndaemonize no\n' +
-                      (f'requirepass "{env["REDIS_PASSWORD"]}"\n' if env.get("REDIS_PASSWORD") else ""))
+                      (f'requirepass "{env["REDIS_PASSWORD"]}"\n' if env.get("REDIS_PASSWORD") else ""), encoding="utf-8")
     config.chmod(0o600)
     launch("redis", [server, config], port, env)
 
 
 def build_backend(env):
-    maven = executable("mvn", "/Applications/IntelliJ IDEA.app/Contents/plugins/maven/lib/maven3/bin/mvn")
-    subprocess.run([maven, "-B", "package"], cwd=ROOT, env=env, check=True)
+    maven = executable("mvn", env=env)
+    run_tool([maven, "-B", "clean", "package"], cwd=ROOT, env=env, check=True)
 
 
 def install_frontend(env):
     if not (WEB / "node_modules/vite/bin/vite.js").exists():
-        subprocess.run([executable("npm"), "ci", "--no-audit", "--no-fund"], cwd=WEB, env=env, check=True)
+        run_tool([executable("npm", env=env), "ci", "--no-audit", "--no-fund"], cwd=WEB, env=env, check=True)
 
 
 def start(env, setup_only=False):
+    check_tools(env)
     RUNTIME.mkdir(exist_ok=True)
     start_mysql(env)
     start_redis(env)
     install_frontend(env)
-    if setup_only or not JAR.exists():
+    if setup_only or backend_needs_build():
+        if process_info("backend"):
+            stop(("backend",))
         build_backend(env)
     if setup_only:
-        subprocess.run([executable("npm"), "run", "build"], cwd=WEB, env=env, check=True)
+        run_tool([executable("npm", env=env), "run", "build"], cwd=WEB, env=env, check=True)
         return
-    java = Path(env["JAVA_HOME"]) / "bin/java" if env.get("JAVA_HOME") else executable("java")
+    java = executable("java", env=env)
     launch("backend", [java, "-jar", JAR], int(env.get("SERVER_PORT", "8081")), env)
     # 使用 Vite 自己的加载器，保持与 npm run dev 完全一致的文件优先级及变量展开。
     front_config = subprocess.run(
-        [executable("node"), "--input-type=module", "-e",
+        [executable("node", env=env), "--input-type=module", "-e",
          "import { loadEnv } from 'vite'; process.stdout.write(JSON.stringify(loadEnv('development', process.cwd(), 'VITE_')));"],
         cwd=WEB, env=env, capture_output=True, text=True, check=True)
     front_env = {**env, **json.loads(front_config.stdout)}
-    launch("frontend", [executable("node"), WEB / "node_modules/vite/bin/vite.js"],
+    launch("frontend", [executable("node", env=env), WEB / "node_modules/vite/bin/vite.js"],
            int(front_env.get("VITE_PORT", "5173")), front_env, WEB)
     ai_enabled = bool(env.get("LLM_API_KEY") and not env["LLM_API_KEY"].startswith("your-") and env.get("AI_INTERNAL_API_KEY"))
     if ai_enabled:
@@ -250,10 +335,23 @@ def start(env, setup_only=False):
 
 
 def stop(names=("ai", "frontend", "backend", "redis", "mysql")):
+    env = environment()
     for name in names:
         info = process_info(name)
         if info:
-            os.kill(info["pid"], signal.SIGTERM)
+            if name == "mysql":
+                subprocess.run([executable("mysqladmin", env=env), "--no-defaults", "--protocol=TCP",
+                                "-h", "127.0.0.1", "-P", str(info["port"]), "-u", "root", "shutdown"],
+                               env={**env, "MYSQL_PWD": env["MYSQL_PASSWORD"]}, check=True)
+            elif name == "redis":
+                redis_env = {key: value for key, value in env.items() if key != "REDISCLI_AUTH"}
+                if env.get("REDIS_PASSWORD"):
+                    redis_env["REDISCLI_AUTH"] = env["REDIS_PASSWORD"]
+                subprocess.run([executable("redis-cli", env=env), "-h", "127.0.0.1",
+                                "-p", str(info["port"]), "shutdown"],
+                               env=redis_env, check=True)
+            else:
+                os.kill(info["pid"], signal.SIGTERM)
             deadline = time.monotonic() + 30
             while process_info(name) and time.monotonic() < deadline:
                 time.sleep(0.3)

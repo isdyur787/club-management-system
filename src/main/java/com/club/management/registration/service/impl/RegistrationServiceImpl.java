@@ -181,7 +181,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         Map<Long, Activity> activityMap = new java.util.HashMap<>();
         Map<Long, ClubInfo> clubMap = new java.util.HashMap<>();
         if (!activityIds.isEmpty()) {
-            List<Activity> activities = activityMapper.selectBatchIds(activityIds);
+            List<Activity> activities = activityMapper.selectRegisteredActivities(userId, activityIds);
             activities.forEach(a -> activityMap.put(a.getId(), a));
             Set<Long> clubIds = activities.stream().map(Activity::getClubId).collect(Collectors.toSet());
             if (!clubIds.isEmpty()) {

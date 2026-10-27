@@ -10,6 +10,38 @@
 
 ## 本机启动
 
+### Windows / Mac 双击入口
+
+| 操作 | Windows | macOS | 终端 |
+| --- | --- | --- | --- |
+| 启动整套服务 | `start.cmd` | `start.command` | `./start.sh` |
+| 停止并保留数据 | `stop.cmd` | `stop.command` | `./stop.sh` |
+
+这些文件都调用 `scripts/dev.py`，依次启动项目专用 MySQL、Redis、Java 后端和 Vue 前端。已有服务由进程记录识别，不重复启动；外部进程占用端口时会报错，不会自动结束其他程序。关闭启动窗口不会停止后台服务，需要停止时使用停止入口。
+
+首次使用需安装 Python 3.10+、JDK 17+、Node.js 18+（含 npm）、Maven 3.8+、MySQL 服务端及客户端、Redis 兼容服务端及客户端，并将工具加入 PATH。Windows 不需要注册项目数据库为系统服务，也不需要管理员权限。Redis 可使用已安装的 `redis-server.exe` / `redis-cli.exe`，或 [Redis 官方 Windows 说明](https://redis.io/docs/latest/operate/oss_and_stack/install/archive/install-redis/install-redis-on-windows/)中的 Memurai，其 `memurai.exe` / `memurai-cli.exe` 会自动识别。仅安装 WSL 中的 Redis 不会提供本脚本所需的 Windows 原生可执行文件。
+
+如果工具没有加入 PATH，在根目录 `.env` 中追加实际安装目录，例如：
+
+```dotenv
+MYSQL_BIN=C:/Program Files/MySQL/MySQL Server 8.0/bin
+REDIS_BIN=C:/Program Files/Memurai
+JAVA_HOME=C:/Program Files/Java/jdk-17
+MAVEN_HOME=C:/Tools/apache-maven-3.9.9
+```
+
+前两个变量指向包含服务端和客户端的目录，后两个变量指向软件根目录。填写自己电脑的路径；中文和空格无需额外加引号。默认查找 PATH、Windows 常见 MySQL / Memurai / IDEA 安装目录，以及当前 Mac 的 MySQL、Homebrew 和 IDEA Maven 目录。
+
+Mac 的 `.command` 已设置执行权限。压缩软件若丢失权限，在项目根目录执行 `chmod +x start.command stop.command start.sh stop.sh scripts/run.sh` 后再双击。脚本会自动切换到项目目录，因此可以从其他目录运行；终端脚本也可用于排查双击窗口中的错误。
+
+首次启动会联网下载 Maven/npm 依赖，耗时取决于网络。无需手动复制 `.env.example`：缺少 `.env` 时脚本生成随机数据库密码和 JWT 密钥；存在 `.env` 时保留原配置。数据保存在 `.runtime/mysql/` 与 `.runtime/redis/`，上传文件仍在原目录；停止和重启不会清库或重复导入已执行的 SQL。已有数据库密码不匹配时会中止，不会自动重置密码。
+
+默认 MySQL 端口为 3307，Redis 为 6379。如果安装软件已自动运行系统数据库服务并占用了项目端口，可在 `.env` 修改 `MYSQL_PORT` / `REDIS_PORT`；AI 用户还需同步 `REDIS_URL`。项目脚本只管理自己记录的进程，不接管系统服务。不要把本机 `.env`、`.runtime/`、`node_modules/`、`target/` 或 Python `.venv/` 直接复制给其他平台；分发源码后在目标电脑首次启动生成本地环境。
+
+Windows 相关的工具发现、参数和路径处理有脚本级测试；当前环境为 macOS，没有 Windows 实机启动、数据库连接和构建验证，交付 Windows 用户前需在目标电脑运行一次完整流程。
+
+### 直接使用 Python
+
 在项目根目录执行：
 
 ```bash
@@ -42,7 +74,7 @@ python3 scripts/dev.py start   # 重新启动，不重复导入种子数据
 python3 scripts/dev.py setup   # 修改 Java 后重新测试打包，同时构建前端
 ```
 
-修改 Java 后：先 `stop`，再 `setup`，最后 `start`。修改 Vue 页面时由 Vite 自动更新。
+启动时会比较 `pom.xml`、Java 源码和后端资源与 JAR 的修改时间，必要时重新测试打包；正在运行旧后端时只停止本项目后端并重建。需要强制构建时仍可执行 `setup`。修改 Vue 页面时由 Vite 自动更新。
 
 SQL 版本记录存放在 `_local_schema_history`，已执行脚本会校验 SHA-256 并跳过。新增数据库变更请新增更高版本的 SQL，不要修改已执行脚本。本次修复了原始 V5 的重复索引，以及 V10 / V11 中缺少社团字段、重复签到和重复报名的初始化错误；V12 为已审批社团的负责人补齐原种子数据遗漏的 RBAC 角色。
 
