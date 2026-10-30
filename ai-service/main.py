@@ -1,3 +1,4 @@
+# 文件职责：AI 服务启动入口，注册业务路由、内部调用认证、CORS 及模型预热/资源释放。
 import os
 import logging
 import threading
@@ -64,7 +65,7 @@ app = FastAPI(title="Club AI Service", version="1.0.0", lifespan=lifespan)
 
 # ========== 认证中间件 ==========
 # Java 端通过内部 HTTP 调用 AI 服务，携带 X-Internal-Key 请求头
-# 管理端点（admin/*）需要额外验证，防止外部直接访问
+# dispatch 实际对全部非公开路径校验内部密钥，用户角色和社团授权由 Java 调用端负责。
 
 INTERNAL_API_KEY = os.getenv("AI_INTERNAL_API_KEY")
 if not INTERNAL_API_KEY:
@@ -75,7 +76,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
     """全局认证中间件：保护管理端点"""
     # 不需要认证的路径
     PUBLIC_PATHS = {"/health", "/docs", "/openapi.json"}
-    # 需要 Internal-Key 认证的管理路径前缀
+    # 管理路径标记；当前 dispatch 不按此前缀分支，统一校验所有非公开路径。
     ADMIN_PREFIXES = ("/knowledge/admin",)
 
     async def dispatch(self, request: Request, call_next):
@@ -85,7 +86,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if path in self.PUBLIC_PATHS:
             return await call_next(request)
 
-        # 管理端点需要 Internal-Key
+        # 使用恒定时间比较内部密钥，缺失或错误都返回 403。
         api_key = request.headers.get("X-Internal-Key", "")
         if not secrets.compare_digest(api_key, INTERNAL_API_KEY):
             return JSONResponse(status_code=403, content={"detail": "Forbidden: invalid internal API key"})

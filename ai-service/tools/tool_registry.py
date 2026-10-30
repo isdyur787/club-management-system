@@ -1,3 +1,4 @@
+# 文件职责：集中维护工具 Schema 与函数映射，只执行已注册工具；每次查询独立借还连接。
 """
 工具注册表（Tool Registry）— 管理所有可调用工具及其 Schema
 
@@ -61,7 +62,7 @@ class ToolRegistry:
         if name not in cls._functions:
             return {"error": f"未知工具: {name}"}
         try:
-            # 参数白名单验证：只传递 schema 中声明的参数
+            # Schema 声明了属性时仅筛选参数名；这里不校验参数类型或资源归属。
             schema = cls._tools.get(name, {}).get("function", {}).get("parameters", {})
             allowed_params = set(schema.get("properties", {}).keys())
             if allowed_params:

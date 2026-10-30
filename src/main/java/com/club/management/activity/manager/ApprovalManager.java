@@ -18,6 +18,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * 活动审批的业务协作层，选择审批策略、查询各级审批结果、保存记录，并调用状态机校验通过或驳回操作。
+ */
 @Component
 public class ApprovalManager {
 
@@ -39,7 +42,8 @@ public class ApprovalManager {
         ApprovalStrategy strategy = strategyFactory.getStrategy(type);
         List<ApprovalStrategy.ApprovalLevel> requiredLevels = strategy.getApprovalLevels();
 
-        // 单次聚合查询替代 N 次 count 查询（企业级 N+1 优化）
+        // 同一级可能有多条历史记录，因此按级别去重，再检查所有必需级别是否均有通过记录。
+        // 一次查询取回全部已通过级别，避免每个级别各查一次数据库。
         List<Integer> requiredLevelNumbers = requiredLevels.stream()
                 .map(ApprovalStrategy.ApprovalLevel::getLevel)
                 .collect(Collectors.toList());
@@ -87,6 +91,7 @@ public class ApprovalManager {
         approvalMapper.insert(approval);
     }
 
+    // 状态机只检查转换是否合法；此处修改内存对象，由 ActivityServiceImpl 在事务中更新数据库。
     public void rejectActivity(Activity activity, String reason) {
         stateMachine.transition(activity.getStatus(), ActivityStatus.REJECTED.name());
         activity.setStatus(ActivityStatus.REJECTED.name());

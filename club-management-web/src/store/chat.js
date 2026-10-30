@@ -1,3 +1,7 @@
+/**
+ * AI 会话状态：按账号隔离 sessionStorage，并为每个社团保留消息、服务端会话标识和加载状态。
+ * 退出/切换账号时递增请求代次，丢弃旧账号迟到的回复；本模块不直接绑定具体网络接口。
+ */
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
@@ -8,11 +12,13 @@ export const useChatStore = defineStore('chat', () => {
   const currentClubId = ref(null)
   const conversations = ref({})
   let ownerId = null
+  // 账号生命周期的版本号，不同社团切换共享同一版本，退出或更换账号才递增。
   let generation = 0
 
   function persist() {
     if (!ownerId) return
     try {
+      // loading 属于当前请求的临时状态，刷新页面时不能把它恢复为“仍在等待”。
       const saved = Object.fromEntries(Object.entries(conversations.value).map(([id, conversation]) => [id, {
         sessionId: conversation.sessionId,
         messages: conversation.messages
@@ -34,6 +40,7 @@ export const useChatStore = defineStore('chat', () => {
     try {
       const saved = JSON.parse(sessionStorage.getItem(STORAGE_PREFIX + ownerId) || 'null')
       if (!saved || typeof saved.conversations !== 'object' || !saved.conversations) return
+      // 恢复时只接受社团数字标识及基本合法的消息，损坏缓存不影响进入页面。
       for (const [id, conversation] of Object.entries(saved.conversations)) {
         if (!/^\d+$/.test(id) || !Array.isArray(conversation?.messages)) continue
         conversations.value[id] = {
@@ -64,6 +71,7 @@ export const useChatStore = defineStore('chat', () => {
     const message = question.trim()
     if (!ownerId || !clubId || !message) return
     const conversation = getConversation(clubId)
+    // 同一社团一次只发送一条；闭包保留发起时的社团，切换页面不改变回复归属。
     if (conversation.loading) return
     const requestGeneration = generation
     conversation.messages.push({ role: 'user', content: message })
@@ -71,6 +79,7 @@ export const useChatStore = defineStore('chat', () => {
     persist()
     try {
       const response = await request({ clubId, sessionId: conversation.sessionId, message })
+      // 网络请求可以继续完成，但旧登录会话的结果不能回写到当前账号。
       if (generation !== requestGeneration) return
       conversation.sessionId = response.data.sessionId
       conversation.messages.push({ role: 'assistant', content: response.data.answer, sources: response.data.sources || [] })
@@ -90,6 +99,7 @@ export const useChatStore = defineStore('chat', () => {
     ownerId = null
     currentClubId.value = null
     conversations.value = {}
+    // 先收集再删除，避免遍历 sessionStorage 时索引变化而漏删历史。
     const keys = []
     for (let i = 0; i < sessionStorage.length; i++) {
       const key = sessionStorage.key(i)

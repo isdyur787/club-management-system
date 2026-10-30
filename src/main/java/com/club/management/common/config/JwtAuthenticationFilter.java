@@ -21,6 +21,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * JWT 认证过滤器，验证签名和注销黑名单，把用户与角色写入本次请求上下文，并在过滤链结束后清理。
+ */
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
@@ -45,6 +48,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                      FilterChain filterChain) throws ServletException, IOException {
         String header = request.getHeader("Authorization");
 
+        // 没有令牌时继续过滤链，是否允许访问由 SecurityConfig 的公开路径规则决定。
         if (header == null || !header.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
@@ -52,6 +56,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String token = header.substring(7);
         try {
+            // 解析过程会验证签名和有效期；成功后才能信任令牌中的用户与角色。
             Claims claims = jwtUtil.parseToken(token);
 
             // 检查 Token 是否在注销黑名单中
@@ -82,7 +87,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 filterChain.doFilter(request, response);
             } finally {
-                // 在 filterChain 执行完毕后清理，确保 AOP 在 doFilter 期间仍可访问
+                // Controller、Service 和权限切面执行期间仍可读取身份。
+                // 请求线程会被线程池复用，结束时移除身份，避免下一次请求读到上一位用户。
                 SecurityContext.clear();
                 SecurityContextHolder.clearContext();
             }

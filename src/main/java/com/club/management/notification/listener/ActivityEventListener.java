@@ -10,6 +10,11 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
+/**
+ * 活动事件的异步订阅者，将审批通过/驳回、活动结束及报名已满事件转为发给活动创建者的站内通知。
+ * 异步方法在另一条线程处理，普通身份/租户 ThreadLocal 不会自动传递。
+ * 当前使用普通 @EventListener，执行时机不保证在发布方数据库事务提交之后。
+ */
 @Component
 public class ActivityEventListener {
 

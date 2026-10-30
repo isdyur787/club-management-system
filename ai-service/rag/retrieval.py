@@ -1,3 +1,4 @@
+# 文件职责：并行向量/BM25 召回、RRF 融合及分层缓存，按集合和过滤条件检索知识。
 import numpy as np
 import logging
 import threading
@@ -50,6 +51,7 @@ def hybrid_search(collection: str, query: str,
 
     # 检查检索 TTL 缓存（避免短时间内重复检索）
     retrieval_cache = get_retrieval_cache()
+    # 完整过滤条件也参与缓存键，避免同一集合下不同文档类型/反馈维度互用结果。
     cache_collection = collection + ":" + json.dumps(effective_where, sort_keys=True, ensure_ascii=False)
     cached = retrieval_cache.get(cache_collection, query, top_k)
     if cached is not None:
@@ -83,6 +85,7 @@ def hybrid_search(collection: str, query: str,
     
     # 降级：如果 section_type 过滤导致无结果，去掉 section_type 重新检索
     if not results and section_type:
+        # 仅撤销自动识别的 section_type，保留调用方传入的其他过滤条件和社团集合。
         fallback_where = dict(where) if where else {}
         # 同样并行执行
         vf2 = _retrieval_executor.submit(
@@ -100,6 +103,7 @@ def hybrid_search(collection: str, query: str,
     # 写入检索 TTL 缓存
     retrieval_cache.put(cache_collection, query, top_k, results)
 
+    # 若片段声明父文档，尽力提升上下文；父文档读取异常时仍返回已召回的片段。
     try:
         parent_ids = list({r.get("metadata", {}).get("parent_id") for r in results if r.get("metadata", {}).get("parent_id")})
         if parent_ids:
@@ -196,6 +200,7 @@ def bm25_search(collection: str, query: str,
 def rrf_fusion(vector_results: List[SearchResult],
                bm25_results: List[SearchResult],
                k: int = 60) -> List[Dict]:
+    # 累加各路排名的倒数分数，避免直接比较 BM25 与向量相似度的不同原始分值尺度。
     doc_scores = {}
 
     for rank, result in enumerate(vector_results):

@@ -28,6 +28,7 @@ export async function ssePost(url, data, signal) {
   })
 
   if (!response.ok) {
+    // fetch 不经过 Axios 拦截器，因此在这里单独处理 HTTP 失败和登录失效。
     if (response.status === 401) {
       userStore.logout()
       router.push('/login')
@@ -46,6 +47,7 @@ export async function ssePost(url, data, signal) {
  * @param {function} [handlers.onDone] - 收到完成事件: (sources: array) => void
  * @param {function} [handlers.onStatus] - 收到状态更新: (content: string) => void
  * @param {function} [handlers.onError] - 收到错误事件: (content: string) => void
+ * @param {function} [handlers.onSession] - 收到服务端会话标识: (sessionId: string) => void
  * @returns {Promise<{ sources: array, content: string }>} 最终结果
  */
 export async function readSSEStream(response, { onToken, onDone, onStatus, onError, onSession }) {
@@ -59,6 +61,7 @@ export async function readSSEStream(response, { onToken, onDone, onStatus, onErr
     const { done, value } = await reader.read()
     if (done) break
 
+    // 网络分块不等于事件边界：流式解码避免截断中文，缓冲区保留未完整收到的行。
     buffer += decoder.decode(value, { stream: true })
     const lines = buffer.split('\n')
     buffer = lines.pop() || '' // 保留不完整的最后一行
@@ -67,6 +70,7 @@ export async function readSSEStream(response, { onToken, onDone, onStatus, onErr
       if (!line.startsWith('data:')) continue
       const data = line.startsWith('data: ') ? line.substring(6).trim() : line.substring(5).trim()
 
+      // 协议中的结构化 done 事件携带来源；单独的 [DONE] 标记无需解析 JSON。
       if (data === '[DONE]') continue
 
       try {
@@ -77,6 +81,7 @@ export async function readSSEStream(response, { onToken, onDone, onStatus, onErr
             onSession?.(event.sessionId)
             break
           case 'token':
+            // 回调接收累计全文，页面可直接替换显示内容，不必再自行拼接。
             content += event.content
             onToken?.(content)
             break
@@ -88,6 +93,7 @@ export async function readSSEStream(response, { onToken, onDone, onStatus, onErr
             onStatus?.(event.content)
             break
           case 'error':
+            // 错误事件交给调用方展示；是否终止读取由后续 done 或网络流结束决定。
             onError?.(event.content)
             break
         }

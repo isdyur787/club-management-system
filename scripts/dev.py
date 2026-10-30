@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """本地开发：MySQL / Redis、Java 后端、Vue 前端，配置密钥后自动启动 AI。"""
+# 文件职责：调度项目服务、迁移、构建与进程登记；根目录启动/停止入口最终调用本脚本。
 import argparse
 import base64
 import hashlib
@@ -35,6 +36,7 @@ def read_env(path):
 
 
 def environment(create=False):
+    # 环境变量优先于 .env；首次运行才生成开发凭证，已有配置原样保留。
     path = ROOT / ".env"
     if create and not path.exists():
         password, jwt = secrets.token_hex(24), secrets.token_hex(32)
@@ -60,6 +62,7 @@ def environment(create=False):
 
 
 def executable(name, *candidates, env=None):
+    # 显式指定的工具目录优先，其次 PATH，最后才尝试常见安装位置。
     env = os.environ if env is None else env
     names = [name + ".exe", name + ".cmd"] if WINDOWS else [name]
     if WINDOWS and name in ("redis-server", "redis-cli"):
@@ -153,6 +156,7 @@ def process_stamp(pid):
 
 
 def process_info(name):
+    # PID 会被系统复用；同时核对启动时间，避免 stop 误伤后来占用相同 PID 的进程。
     path = RUNTIME / f"{name}.process.json"
     if path.exists():
         info = json.loads(path.read_text(encoding="utf-8"))
@@ -168,6 +172,7 @@ def port_open(port):
 
 
 def launch(name, command, port, env, cwd=ROOT):
+    # 只有登记过的进程才复用；端口被陌生进程占用时直接报错，不强行结束对方。
     if process_info(name):
         if not port_open(port):
             raise RuntimeError(f"{name} 进程存在但端口未就绪，请查看 .runtime/{name}.log。")
@@ -186,6 +191,7 @@ def launch(name, command, port, env, cwd=ROOT):
     while time.monotonic() < deadline:
         if child.poll() is not None:
             raise RuntimeError(f"{name} 启动失败，请查看 .runtime/{name}.log。")
+        # 端口可连接仅代表进程开始监听，具体业务是否可用仍要检查接口和日志。
         if port_open(port):
             print(f"{name} 已启动：127.0.0.1:{port}", flush=True)
             return
@@ -194,6 +200,7 @@ def launch(name, command, port, env, cwd=ROOT):
 
 
 def sql(env, statement, database=None, password=None, check=True):
+    # 密码通过子进程环境传给客户端，SQL 从标准输入发送，避免出现在命令行参数中。
     client = executable("mysql", env=env)
     command = [client, "--no-defaults", "--protocol=TCP", "-h", "127.0.0.1",
                "-P", env.get("MYSQL_PORT", "3307"), "-u", "root",
@@ -225,7 +232,7 @@ def mysql_command(server, env):
 
 def start_mysql(env):
     if env.get("MYSQL_HOST", "127.0.0.1") not in ("127.0.0.1", "localhost") or env.get("MYSQL_USER", "root") != "root":
-        raise RuntimeError("本脚本只管理项目自带的本地 MySQL；外部数据库请按 docs/local-development.md 手动启动两端。")
+        raise RuntimeError("本脚本只管理项目自带的本地 MySQL；使用外部数据库时，请自行启动 MySQL、Redis、Java 后端和 Vue 前端。")
     if env.get("SPRING_PROFILES_ACTIVE", "dev") != "dev":
         raise RuntimeError("本地脚本只使用 dev 配置；生产环境请独立启动 Java 服务。")
     if env.get("MYSQL_URL"):
@@ -234,7 +241,7 @@ def start_mysql(env):
                 or (url.port or 3306) != int(env.get("MYSQL_PORT", "3307"))
                 or url.path.lstrip("/") != env.get("MYSQL_DATABASE", "club_management")):
             raise RuntimeError("MYSQL_URL 与本地 MYSQL_HOST/PORT/DATABASE 不一致，未操作数据库。"
-                               "请统一配置，或按 docs/local-development.md 手动启动两端。")
+                               "请统一数据库配置，或自行启动数据库、Java 后端和 Vue 前端。")
     server = executable("mysqld", env=env)
     data = RUNTIME / "mysql"
     initialized = not (data / "auto.cnf").exists()
@@ -258,6 +265,7 @@ def start_mysql(env):
              "(version INT PRIMARY KEY, filename VARCHAR(255), checksum CHAR(64), "
              "applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);", database)
     for path in sorted((ROOT / "sql").glob("V*__*.sql"), key=lambda p: int(p.name.split("__")[0][1:])):
+        # 按数字版本排序（V2 早于 V10）；已执行文件的注释也计入哈希，不可原位改写。
         version = int(path.name.split("__")[0][1:])
         checksum = hashlib.sha256(path.read_bytes()).hexdigest()
         applied = sql(env, f"SELECT checksum FROM _local_schema_history WHERE version={version};", database).stdout.strip()
@@ -304,6 +312,7 @@ def install_frontend(env):
 
 
 def start(env, setup_only=False):
+    # 顺序有依赖：数据库和缓存先就绪，再构建/启动 Java，随后启动 Vue 和可选 AI。
     check_tools(env)
     RUNTIME.mkdir(exist_ok=True)
     start_mysql(env)
@@ -335,6 +344,7 @@ def start(env, setup_only=False):
 
 
 def stop(names=("ai", "frontend", "backend", "redis", "mysql")):
+    # 先停业务、后停基础服务；MySQL/Redis 走各自的正常关闭命令以保留持久数据。
     env = environment()
     for name in names:
         info = process_info(name)

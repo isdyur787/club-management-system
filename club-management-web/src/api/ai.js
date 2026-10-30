@@ -1,3 +1,7 @@
+/**
+ * 扩展业务接口集合：封装打卡/签退、积分、AI 问答、报告、汇编、知识库与文件上传。
+ * 普通接口复用 Axios，流式问答交给 SSE 工具；生成类请求单独延长等待时间。
+ */
 import request from './request'
 import { ssePost } from '@/utils/sse'
 
@@ -31,6 +35,7 @@ export function settlePoints(activityId) {
 }
 
 export function generateCompilation(activityId) {
+  // 后端汇总成员反馈并生成汇编；此接口单独将等待时间从默认 30 秒延长到 120 秒。
   return request.post(`/checkin/compilation/generate/${activityId}`, null, { timeout: 120000 })
 }
 
@@ -70,7 +75,7 @@ export function aiChat(data) {
 }
 
 export function aiChatStream(data, signal) {
-  // SSE 流式对话：通过 ssePost 工具函数统一 token 管理和 401 处理
+  // 返回原始 Response，消费方需交给 readSSEStream；当前 ChatView 使用上面的 aiChat。
   return ssePost('/ai/chat/stream', data, signal)
 }
 

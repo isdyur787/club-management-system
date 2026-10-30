@@ -1,3 +1,7 @@
+<!--
+  AI 知识助手页：选择社团、显示当前账号的分社团会话，并发送知识问答。
+  当前发送流程使用普通 aiChat 请求；会话和加载状态交给 chat Store，回复显示前进行 HTML 转义。
+-->
 <template>
   <div class="chat-view">
     <el-card class="chat-container">

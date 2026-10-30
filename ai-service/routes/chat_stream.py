@@ -1,3 +1,4 @@
+# 文件职责：检索上下文、收集模型流并输出 SSE；正文完整过滤/自检后才分句发送。
 """
 chat_stream.py — SSE 流式端点逻辑
 
@@ -111,7 +112,7 @@ def _stream_generate(question: str, fine_results: List[Dict],
         stream=True
     )
 
-    # 流式输出：逐 chunk 产出 token
+    # 此处只产出模型片段；外层先收集完整答案，再过滤并发送到前端。
     for chunk in result["response"]:
         delta = chunk.choices[0].delta if chunk.choices else None
         if delta and delta.content:
@@ -205,7 +206,7 @@ async def stream_event_generator(request) -> AsyncGenerator[str, None]:
     await limiter.acquire()
     try:
         loop = asyncio.get_running_loop()
-        # 在线程池中运行同步流式生成器，通过队列桥接到 async
+        # 同步模型流由工作线程读取，使用线程安全投递把片段交回事件循环。
         token_queue = asyncio.Queue()
 
         def _run_stream():
@@ -261,5 +262,6 @@ async def stream_event_generator(request) -> AsyncGenerator[str, None]:
     except Exception as e:
         logger.warning(f"Redis operation failed: {e}")
 
+    # done 携带来源元数据，[DONE] 表示 SSE 业务流结束；token 事件只承载清理后的正文。
     yield f"data: {json.dumps({'type': 'done', 'sources': sources}, ensure_ascii=False)}\n\n"
     yield "data: [DONE]\n\n"

@@ -39,6 +39,9 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+/**
+ * 报名签到服务实现，通过事务与活动版本号保护人数更新，使用 Redis 短期签到码和集合成员记录辅助签到校验与防重。
+ */
 @Service
 public class RegistrationServiceImpl implements RegistrationService {
 
@@ -88,7 +91,8 @@ public class RegistrationServiceImpl implements RegistrationService {
             throw new ConflictException(ErrorCode.REGISTRATION_DUPLICATE);
         }
 
-        // 乐观锁更新报名人数
+        // 把读取到的 version 放进 UPDATE 条件，并在同一条 SQL 中检查人数上限。
+        // 其他请求若已修改该活动，本次版本匹配失败，不会覆盖它的报名人数。
         com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<Activity> updateWrapper =
                 new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<>();
         updateWrapper.eq("id", activity.getId())
@@ -102,7 +106,7 @@ public class RegistrationServiceImpl implements RegistrationService {
             throw new BusinessException(ErrorCode.REGISTRATION_FULL);
         }
 
-        // 创建报名记录
+        // 人数更新与报名记录位于同一个数据库事务；插入失败时，前面增加的人数也会回滚。
         Registration registration = new Registration();
         registration.setActivityId(dto.getActivityId());
         registration.setUserId(userId);
@@ -297,7 +301,7 @@ public class RegistrationServiceImpl implements RegistrationService {
             throw new NotFoundException(ErrorCode.REGISTRATION_NOT_FOUND);
         }
 
-        // Redis SET NX 原子操作防重（替代 isMember 非原子检查）
+        // Redis SADD 原子地添加用户；返回 0 表示此用户已在签到集合中，无需先查再写。
         String signKey = RedisKeyConstants.SIGN_IN + dto.getActivityId();
         Long added = redisTemplate.opsForSet().add(signKey, String.valueOf(userId));
         if (added == null || added == 0) {
@@ -313,7 +317,7 @@ public class RegistrationServiceImpl implements RegistrationService {
             signIn.setSignedAt(LocalDateTime.now());
             signInMapper.insert(signIn);
         } catch (Exception e) {
-            // DB 插入失败时回滚 Redis 防重标记
+            // Redis 不参加数据库事务，这里对插入阶段的异常手动移除防重标记，允许用户重试。
             redisTemplate.opsForSet().remove(signKey, String.valueOf(userId));
             throw e;
         }

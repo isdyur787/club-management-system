@@ -1,3 +1,7 @@
+/**
+ * 路由配置与访问守卫：按需加载页面，依据 JWT 是否过期和 meta.roles 控制前端页面访问。
+ * 菜单显示另见布局组件；后端仍负责校验 Token 签名和每个接口的真实操作权限。
+ */
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/store'
 
@@ -122,7 +126,7 @@ const router = createRouter({
   routes
 })
 
-// 解析 JWT 的 exp 字段，判断是否过期
+// 只读取 JWT 的 exp 做前端过期判断；此处不验证签名，解析失败按失效处理。
 function isTokenExpired(token) {
   try {
     const payload = JSON.parse(atob(token.split('.')[1]))
@@ -135,7 +139,7 @@ function isTokenExpired(token) {
 router.beforeEach((to, from, next) => {
   const userStore = useUserStore()
 
-  // 1. 认证检查
+  // 1. 除显式标记 requiresAuth: false 的登录页外，访问页面都要求有效 Token。
   if (to.meta.requiresAuth !== false) {
     if (!userStore.token || isTokenExpired(userStore.token)) {
       userStore.logout()
@@ -144,7 +148,7 @@ router.beforeEach((to, from, next) => {
     }
   }
 
-  // 2. 角色权限检查（meta.roles 存在且非空时生效）
+  // 2. 命中 meta.roles 中任意一个角色即可访问，失败回到所有角色均可进入的首页。
   const requiredRoles = to.meta.roles
   if (Array.isArray(requiredRoles) && requiredRoles.length > 0) {
     const userRoles = userStore.roles || []

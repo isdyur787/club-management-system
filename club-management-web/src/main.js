@@ -1,3 +1,6 @@
+/**
+ * 前端启动入口：创建 Vue 应用，安装 Pinia、路由和中文版 Element Plus，加载全局样式并挂载 #app。
+ */
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import ElementPlus from 'element-plus'

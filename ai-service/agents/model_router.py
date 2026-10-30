@@ -1,3 +1,4 @@
+# 文件职责：按任务选择模型档案，缓存客户端并依次尝试主备模型，累计调用/失败统计。
 """
 模型路由器（Model Router）— 统一 LLM 调度层
 
@@ -120,7 +121,7 @@ class ModelRouter:
             if name != preferred.name:
                 chain.append(profile)
 
-        # 如果有 tools 参数，过滤掉不支持 FC 的模型
+        # 工具请求优先尝试支持 FC 的模型，不支持者仍留在链尾，调用时省略工具定义。
         if tools:
             chain = ([p for p in chain if p.supports_function_calling]
                      + [p for p in chain if not p.supports_function_calling])
@@ -146,6 +147,7 @@ class ModelRouter:
                 client = profile.get_client()
                 if profile.model.startswith("qwen") and not profile.supports_thinking:
                     call_kwargs["extra_body"] = {**call_kwargs.get("extra_body", {}), "enable_thinking": False}
+                # stream=True 时仅取得流对象；迭代阶段的错误由流式调用方处理。
                 response = client.chat.completions.create(**call_kwargs)
 
                 elapsed = time.time() - start

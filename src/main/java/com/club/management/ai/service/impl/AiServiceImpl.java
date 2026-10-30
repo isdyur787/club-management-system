@@ -61,14 +61,16 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
+/**
+ * Java 侧 AI 服务实现，代理 Python AI 接口、转发 SSE 事件，并维护会话、报告和知识库元数据及缓存。
+ */
 @Slf4j
 @Service
 public class AiServiceImpl implements AiService {
 
     /**
-     * 共享线程池 — 避免每次 SSE 请求创建新线程池
-     * 设计模式：Object Pool — 复用线程，控制并发上限
-     * SSE 场景 IO 密集型，线程池应大于 CPU 核心数
+     * SSE 转发会等待 Python 的网络响应，交给共享线程池执行，避免一直占用 Servlet 请求线程。
+     * 固定工作线程数限制同时执行的转发任务；应用关闭时由 destroy 统一释放。
      */
     private final ExecutorService sseExecutor = Executors.newFixedThreadPool(
             Math.max(16, Runtime.getRuntime().availableProcessors() * 2),
@@ -175,7 +177,7 @@ public class AiServiceImpl implements AiService {
         emitter.onTimeout(limiter::release);
         emitter.onError(e -> limiter.release());
 
-        // 使用共享线程池异步转发到 Python SSE 端点
+        // 先在请求线程取出所需参数，再交给共享线程池；普通 ThreadLocal 身份不会自动传入工作线程。
         final String finalSessionId = sessionId;
         doStreamChat(emitter, dto, finalSessionId);
 
@@ -231,6 +233,7 @@ public class AiServiceImpl implements AiService {
                                 new InputStreamReader(response.getBody(), StandardCharsets.UTF_8))) {
                             String line;
                             while ((line = reader.readLine()) != null) {
+                                // Python 返回的是 SSE 行协议；这里只转发 data 行，[DONE] 转为前端 done 事件。
                                 if (line.startsWith("data:")) {
                                     String data = line.startsWith("data: ") ? line.substring(6) : line.substring(5);
                                     if ("[DONE]".equals(data)) {
@@ -441,7 +444,8 @@ public class AiServiceImpl implements AiService {
             throw new BusinessException(ErrorCode.AI_REPORT_ALREADY_CONFIRMED);
         }
 
-        // 入库成功后再确认，失败时保留草稿，允许重试。
+        // 先让 Python 完成知识库入库，再保存 CONFIRMED；入库失败时不把草稿标为已确认。
+        // Python 的外部写入不受本地数据库事务回滚控制。
         try {
             String url = aiConfig.getBaseUrl() + "/knowledge/ingest-report";
             Map<String, Object> body = Map.of(
@@ -623,7 +627,8 @@ public class AiServiceImpl implements AiService {
     }
 
     /**
-     * RestTemplate 重试工具方法：最多重试 3 次，每次间隔 1 秒
+     * AI 请求最多尝试 3 次，仅连接/读取等 ResourceAccessException 触发重试，间隔依次为 1、2 秒。
+     * HTTP 业务错误不会走此重试；写入类接口是否可安全重复调用取决于 Python 端的幂等处理。
      */
     @SuppressWarnings("unchecked")
     private <T> org.springframework.http.ResponseEntity<T> retryPostForEntity(

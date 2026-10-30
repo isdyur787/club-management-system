@@ -41,6 +41,9 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * 反馈打卡服务实现，校验任务期限和提交内容，保存成员反馈，生成积分流水及成员反馈汇编。
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -86,7 +89,7 @@ public class CheckinServiceImpl implements CheckinService {
         task.setStatus(CheckinTaskStatus.ACTIVE.getCode());
         taskMapper.insert(task);
 
-        // 查询报名人数
+        // 此处统计社团成员数，作为任务要求人数；并非活动报名表中的报名人数。
         LambdaQueryWrapper<ClubMember> memberWrapper = new LambdaQueryWrapper<>();
         memberWrapper.eq(ClubMember::getClubId, activity.getClubId());
         int requireCount = Math.toIntExact(clubMemberMapper.selectCount(memberWrapper));
@@ -257,7 +260,7 @@ public class CheckinServiceImpl implements CheckinService {
         record.setIsAdopted(CheckinRecord.ADOPTED);
         recordMapper.updateById(record);
 
-        // 积分 +5
+        // 建议采纳奖励从配置读取，默认 5 分；流水和采纳标记一起提交或回滚。
         PointsLog pointsLog = new PointsLog();
         pointsLog.setClubId(record.getClubId());
         pointsLog.setUserId(record.getUserId());
@@ -291,7 +294,8 @@ public class CheckinServiceImpl implements CheckinService {
             throw new BusinessException(ErrorCode.CHECKIN_ALREADY_SETTLED, "打卡积分正在结算中");
         }
 
-        // 设置“结算中”状态，防止并发重复结算
+        // CLOSED 表示结算处理中，COMPLETED 表示已结算；后续请求据此识别重复操作。
+        // 这里是普通按 ID 更新，状态检查本身不等同于并发锁。
         task.setStatus(CheckinTaskStatus.CLOSED.getCode());
         taskMapper.updateById(task);
 
@@ -332,6 +336,7 @@ public class CheckinServiceImpl implements CheckinService {
             settledCount++;
         }
 
+        // 积分流水和任务完成状态共用本方法的事务；批量写入失败时整个结算回滚。
         // 批量插入积分日志
         if (!allLogs.isEmpty()) {
             pointsLogMapper.batchInsert(allLogs);

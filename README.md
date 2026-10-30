@@ -1,214 +1,119 @@
-# 社团管理系统（Club Management System）
+作者：大连工业大学计算机互认 231 第一组（邵昱铭、黄宸歆、钱程、吕金凌、李惠恩）
 
-面向高校社团管理的智能平台，涵盖社团管理、活动审批、报名签到、资源借用、通知推送、积分打卡等完整业务场景，并深度集成了基于 RAG（检索增强生成）的 AI 智能助手。
+# 社团管理系统
 
-## 系统架构
+本项目用于小组课程实训与项目答辩。组员按功能模块分工，使用 Git 管理代码版本、同步开发进度和合并各自完成的功能。
 
-```
-┌──────────────────┐     REST      ┌──────────────────┐     REST      ┌──────────────────┐
-│   Vue 3 前端      │ ──────────── │  Java 后端        │ ──────────── │  Python AI 服务   │
-│  Vite + Element   │   :5173      │  Spring Boot 3    │   :8081      │  FastAPI + RAG    │
-└──────────────────┘              └────────┬─────────┘              └────────┬─────────┘
-                                           │                                 │
-                              MySQL 8.0 + Redis 6.0              ChromaDB + BGE 模型
-```
+系统围绕高校社团的日常管理，提供社团与成员管理、活动审批、报名签到、资源借用、通知、积分打卡等功能，并结合社团知识资料提供 AI 问答与报告辅助生成。
 
-| 子系统 | 技术栈 | 端口 |
-|--------|--------|------|
-| **前端** | Vue 3 + Vite 5 + Element Plus + Pinia | 5173 (dev) |
-| **后端** | Spring Boot 3.2.5 + Java 17 + MyBatis-Plus + Spring Security + JWT | 8081 |
-| **AI 服务** | FastAPI + LangGraph + ChromaDB + Sentence-Transformers | 8000 |
+## 主要功能
 
-## 功能模块
+- 用户与权限：登录认证、角色权限控制、个人信息管理。
+- 社团与活动：社团申请、成员管理、活动发布与审批、报名、签到和签退。
+- 日常管理：场地预约、设备借用、消息通知、打卡记录和积分统计。
+- AI 助手：社团知识问答、活动信息查询、经验推荐和成果报告辅助生成。
+- 知识库：上传资料、管理文档，通过混合检索和重排序为 AI 回答提供参考内容。
 
-### 核心业务
-- **用户认证**：JWT 无状态认证、RBAC 权限（4 角色 24+ 权限码）、登录失败锁定
-- **社团管理**：社团 CRUD、成员加入/退出、社团审批
-- **活动管理**：活动全生命周期（状态机：草稿 → 待审批 → 已审批 → 进行中 → 已完成）、策略模式审批
-- **报名签到**：活动报名、签到码签到、签退
-- **资源管理**：场地预约、设备借用/归还
-- **通知推送**：Spring Event 事件驱动自动通知
-- **积分系统**：签到积分、打卡积分、建议采纳积分
-- **打卡管理**：打卡任务创建、打卡记录、打卡汇编
+## 技术结构
 
-### AI 智能助手
-- **RAG 知识问答**：混合检索（向量 + BM25 + RRF 融合）→ Reranker 精排 → LLM 生成 → 忠实度自检
-- **成果报告生成**：基于打卡汇编数据自动生成活动成果报告
-- **经验推荐**：检索历史活动报告为新活动提供经验建议
-- **Function Calling**：Agent 自动调用数据库查询（活动搜索、成员查询）
-- **知识库管理**：文档上传入库、报告确认入库，支持 RAG 检索
-- **多模型降级**：DeepSeek V4-Flash（主）→ MiMo v2.5（备），自动故障转移
+| 部分           | 技术与用途                                        |
+| -------------- | ------------------------------------------------- |
+| 前端           | Vue 3、Vite、Element Plus、Pinia                  |
+| Java 后端      | Spring Boot 3、MyBatis-Plus、Spring Security、JWT |
+| Python AI 服务 | FastAPI、LangGraph、BGE 向量与重排序模型          |
+| MySQL          | 保存用户、社团、活动、报名等业务数据              |
+| Redis          | 保存缓存、会话上下文等数据                        |
+| ChromaDB       | 保存知识片段及其向量，支持语义检索                |
 
-## 快速开始
+请求流程：浏览器 → Vue 前端 → Java 业务后端 → MySQL / Redis；AI 相关请求由 Java 后端转发至 Python AI 服务，结合知识检索与云端模型接口生成结果。
 
-### 本机一键运行（前后端分离）
+## 本地运行
 
-安装下方列出的运行依赖后，在项目根目录使用对应入口：
+基础环境需要 Python 3.10+、JDK 17+、Node.js 18+、Maven、MySQL 8 和 Redis 兼容服务，相关命令需加入 PATH。AI 环境建议使用 Python 3.12。Windows 可使用启动脚本支持的 Memurai。
 
-| 系统 | 启动 | 停止（保留数据） |
-| --- | --- | --- |
-| Windows | 双击 `start.cmd` | 双击 `stop.cmd` |
-| macOS | 双击 `start.command` | 双击 `stop.command` |
-| macOS / Linux 终端 | `./start.sh` | `./stop.sh` |
+在项目根目录使用以下入口：
 
-Windows 可使用已安装的 Redis 兼容程序或 Memurai；MySQL 和 Redis 工具路径可在 `.env` 中配置。脚本会检查依赖，缺少软件时给出提示，不会自动安装系统软件。Mac 下载后如果失去执行权限，执行 `chmod +x *.command *.sh scripts/run.sh`。
+| 系统               | 启动                | 停止并保留数据     |
+| ------------------ | ------------------- | ------------------ |
+| Windows            | 双击`start.cmd`     | 双击`stop.cmd`     |
+| macOS              | 双击`start.command` | 双击`stop.command` |
+| macOS / Linux 终端 | `bash start.sh`     | `bash stop.sh`     |
 
-也可以直接使用公共启动脚本：
+也可以通过公共脚本启动、查看状态和停止服务：
 
 ```bash
 python3 scripts/dev.py start
+python3 scripts/dev.py status
+python3 scripts/dev.py stop
 ```
 
-访问 `http://localhost:5173`，管理员账号为 `admin / 123456`。入口会启动 Vue 前端、Java 后端及项目专用 MySQL / Redis；配置了有效模型密钥、内部密钥和 Python AI 环境时，也会启动 AI。首次运行自动生成 `.env`、初始化数据库、导入 SQL、安装前端依赖和构建后端，后续保留已有数据。完整说明及 Windows 实机验证限制见 [本地运行与部署配置](docs/local-development.md)。
+首次运行且根目录没有 `.env` 时，脚本会生成本机配置、初始化项目专用数据库、安装前端依赖并构建后端。已有配置和数据会保留；系统环境变量优先于 `.env`。脚本会检查系统依赖，但不会自动安装 MySQL、Redis、Java 等系统软件。
 
-下面是使用已有数据库、手动配置所有服务的步骤：
+默认访问地址：
 
-### 环境要求
+- 前端：[http://localhost:5173](http://localhost:5173)
+- 后端接口文档：[http://localhost:8081/swagger-ui/index.html](http://localhost:8081/swagger-ui/index.html)
+- AI 健康检查：[http://localhost:8000/health](http://localhost:8000/health)，需先启动 AI 服务。
 
-| 依赖 | 版本 |
-|------|------|
-| JDK | 17+ |
-| Maven | 3.8+ |
-| Python | 3.10+ |
-| Node.js | 18+ |
-| MySQL | 8.0 |
-| Redis | 6.0+ |
+### 启用 AI 服务
 
-### 1. 克隆项目
+在根目录 `.env` 中配置模型 API 密钥 `LLM_API_KEY`、服务地址 `LLM_BASE_URL`、模型名称 `LLM_MODEL`，以及 Java 与 Python 之间的内部认证密钥 `AI_INTERNAL_API_KEY`。数据库配置需与本机项目数据库一致。
+
+准备 AI 环境后启动服务：
 
 ```bash
-git clone https://gitee.com/rirusoon/club-management-system.git
-cd club-management-system
+python3 scripts/ai.py setup
+python3 scripts/ai.py start
 ```
 
-### 2. 配置环境变量
+准备好 AI 环境和有效密钥后，整套项目的启动入口也会启动 AI 服务。向量模型与重排序模型分别通过 `EMBEDDING_MODEL`、`RERANKER_MODEL` 配置，在本地加载；回答生成模型通过 API 调用。
+
+## 组员使用 Git 协作
+
+小组使用共享 Git 仓库管理项目。每位组员负责自己的功能模块，在独立分支开发，将代码推送到共享仓库，经过组员检查后合并到 `main` 分支。
+
+协作约定：
+
+1. 开始开发前，先同步主分支，确认本地已有修改已妥善保存。
+2. 按功能创建分支，例如 `feature/knowledge-upload`；修复问题可使用 `fix/` 前缀。
+3. 提交前查看差异，只提交本次负责的修改，提交说明写清楚完成了什么。
+4. 推送分支后，由相关组员检查接口、公共文件和运行情况，再合并到主分支。
+5. 修改同一文件发生冲突时，相关组员共同确认保留的逻辑，解决后再提交。
+
+以下以知识库上传页面的协作为例：
 
 ```bash
-cp .env.example .env
-# 编辑 .env，填入实际的 API Key、数据库密码等
+# 同步主分支并创建自己的功能分支
+git switch main
+git pull --ff-only origin main
+git switch -c feature/knowledge-upload
+
+# 完成开发后，查看并提交本次修改
+git status
+git diff
+git add club-management-web/src/views/ai/KnowledgeView.vue
+git commit -m "feat: 完善知识库上传功能"
+
+# 推送到小组共享仓库，供组员检查与合并
+git push -u origin feature/knowledge-upload
 ```
 
-### 3. 初始化数据库
+共享仓库提交源码、依赖清单、配置模板和 SQL。各组员的 `.env`、API 密钥、本地数据库、上传文件、模型权重和依赖安装目录保留在各自电脑，不作为协作代码提交。数据库结构调整使用新的 SQL 迁移文件，已执行过的历史迁移保持不变。
 
-```bash
-mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS club_management CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-mysql -u root -p < sql/V1__init_schema.sql
-mysql -u root -p club_management < sql/V2__init_data.sql
-mysql -u root -p club_management < sql/V3__ai_tables.sql
-mysql -u root -p club_management < sql/V4__ai_permissions.sql
-mysql -u root -p club_management < sql/V5__add_indexes.sql
-mysql -u root -p club_management < sql/V6__test_data.sql
-mysql -u root -p club_management < sql/V7__fix_issues.sql
-mysql -u root -p club_management < sql/V8__bugfix.sql
-mysql -u root -p club_management < sql/V9__add_compound_indexes.sql
-mysql -u root -p club_management < sql/V10__more_test_data.sql
-mysql -u root -p club_management < sql/V11__bulk_test_data.sql
-mysql -u root -p club_management < sql/V12__sync_president_roles.sql
-mysql -u root -p club_management < sql/V13__complete_demo_scenarios.sql
-```
+## 项目目录
 
-### 4. 启动 Java 后端
-
-```bash
-mvn spring-boot:run -Dspring-boot.run.profiles=dev
-```
-
-Swagger 文档：http://localhost:8081/swagger-ui/index.html
-
-### 5. 启动 AI 服务
-
-```bash
-cd ai-service
-pip install -r requirements.txt
-python main.py
-```
-
-健康检查：http://localhost:8000/health
-
-### 6. 启动前端
-
-```bash
-cd club-management-web
-npm install
-npm run dev
-```
-
-访问：http://localhost:5173
-
-### 测试账号
-
-| 用户名 | 密码 | 角色 |
-|--------|------|------|
-| admin | 123456 | 系统管理员 |
-| teacher_li | 123456 | 指导老师 |
-| zhangsan | 123456 | 学生 / 社团负责人 |
-| lisi | 123456 | 学生 |
-
-## 项目结构
-
-```
+```text
 club-management-system/
-├── src/main/java/com/club/management/   # Java 后端
-│   ├── common/                           # 公共模块（安全/注解/异常/工具）
-│   ├── user/                             # 用户认证
-│   ├── club/                             # 社团管理
-│   ├── activity/                         # 活动管理（状态机 + 审批策略）
-│   ├── registration/                     # 报名管理
-│   ├── checkin/                          # 打卡管理
-│   ├── signout/                          # 签退管理
-│   ├── points/                           # 积分管理
-│   ├── resource/                         # 资源管理
-│   ├── notification/                     # 通知管理（事件驱动）
-│   ├── statistics/                       # 数据统计
-│   ├── file/                             # 文件管理
-│   └── ai/                               # AI 模块（Java 端）
-├── src/test/java/                        # 单元测试
-├── ai-service/                           # Python AI 微服务
-│   ├── routes/                           # 路由（chat/report/experience/knowledge）
-│   ├── rag/                              # RAG 核心（检索/精排/生成/缓存/护栏）
-│   ├── agents/                           # Agent 系统（模型路由/工具执行）
-│   ├── tools/                            # 工具（DB 读取/文档解析）
-│   └── tests/                            # 测试
-├── club-management-web/                  # Vue 3 前端
-│   └── src/
-│       ├── api/                          # API 请求层
-│       ├── components/                   # 可复用组件
-│       ├── composables/                  # 组合式函数
-│       ├── constants/                    # 常量枚举
-│       ├── router/                       # 路由配置（角色守卫）
-│       ├── store/                        # Pinia 状态管理
-│       ├── utils/                        # 工具函数
-│       └── views/                        # 页面组件
-├── sql/                                  # 数据库脚本（V1 ~ V11）
-├── docs/                                 # 设计文档
-├── pom.xml                               # Maven 配置
-└── .env.example                          # 环境变量模板
+├── src/main/                 # Java 业务后端与配置
+├── club-management-web/      # Vue 前端
+├── ai-service/               # Python AI 服务与知识检索
+├── scripts/                  # 服务调度、环境准备和数据索引工具
+├── sql/                      # 数据库初始化与版本迁移
+├── docs/knowledge/           # SQL 引用的社团知识资料
+├── deploy/                   # 部署配置示例
+├── pom.xml                   # Java 依赖与构建配置
+├── .env.example              # 环境配置参考
+└── start.* / stop.*          # 各平台启动与停止入口
 ```
 
-## 技术亮点
-
-| 维度 | 实现 |
-|------|------|
-| **权限安全** | RBAC 4 角色 + 24 权限码、JWT + Redis 黑名单、登录失败锁定、XSS 白名单过滤 |
-| **活动状态机** | 策略模式审批（校内/大型/校外三种策略）、乐观锁防并发 |
-| **事件驱动** | Spring Event 解耦通知推送（审批通过/活动完成/成员加入） |
-| **AOP 横切面** | 幂等控制、接口限流、操作日志、权限校验四大切面 |
-| **RAG 管道** | LangGraph 6 节点状态图、向量+BM25 混合检索、RRF 融合、Reranker 精排、忠实度自检 |
-| **Agent 系统** | 多模型路由降级、Function Calling 工具注册、参数白名单校验 |
-| **延迟优化** | 语义缓存（LRU）、Embedding 缓存、检索缓存、LLM 并发控制 |
-| **三端分离** | Java 业务 + Python AI + Vue 前端，职责清晰，独立部署 |
-
-## 设计文档
-
-| 文档 | 内容 |
-|------|------|
-| [架构设计](docs/01-architecture.md) | 系统架构、技术选型、部署架构 |
-| [开发规范](docs/02-development-standards.md) | 编码规范、分层规范、提交规范 |
-| [数据库设计](docs/03-database-design.md) | ER 图、表结构、索引策略 |
-| [API 规范](docs/04-api-specification.md) | RESTful 接口规范、统一响应格式 |
-| [模块设计](docs/05-module-design.md) | 各模块详细设计 |
-| [安全设计](docs/06-security-design.md) | 认证鉴权、RBAC、数据安全 |
-
-## 许可证
-
-本项目仅供学习交流使用。
+`.runtime/` 保存本机运行状态、数据库及相关运行文件；数据目录保存上传文件和 AI 服务数据，停止服务时保留这些内容。

@@ -1,3 +1,4 @@
+# 文件职责：定义 RAG 的 LangGraph 状态、节点和条件边，组织检索、生成及自检。
 """
 chat_nodes.py — LangGraph 状态图节点定义
 
@@ -47,6 +48,7 @@ class ChatState(TypedDict):
 def retrieve_node(state: ChatState) -> dict:
     """节点1：粗排检索"""
     try:
+        # 使用请求社团的独立集合，知识召回不混入其他社团的文档。
         collection = get_collection_name(state["club_id"])
         results = hybrid_search(collection, state["question"], top_k=COARSE_TOP_K)
         return {"coarse_results": results or []}
@@ -114,6 +116,7 @@ def generate_node(state: ChatState) -> dict:
     """节点5：LLM 生成回答"""
     fine_results = _filter_garbled_results(state["fine_results"])
     try:
+        # 检索无可用资料时切换通用社团建议；模型异常时下方再降级为检索摘要。
         if fine_results:
             gen_result = generate_answer(state["question"], fine_results, state["history"])
         else:
@@ -130,6 +133,7 @@ def self_check_node(state: ChatState) -> dict:
     answer = state.get("answer", "")
     fine_results = state.get("fine_results", [])
 
+    # 自检结果还决定答案能否写入语义缓存，失败摘要不可标记为可信生成结果。
     if state.get("error") or "AI 生成暂不可用" in answer:
         return {"check_passed": False, "check_confidence": 0.0}
     if not fine_results:
@@ -173,6 +177,7 @@ def build_chat_graph():
     graph.add_edge("rerank", "relevance_check")
 
     def should_rewrite(state: ChatState) -> str:
+        # 条件边读取 relevance_check 合并后的状态，retry_count 决定是否进入改写节点。
         if state.get("retry_count", 0) == 0 and state.get("fine_results"):
             max_score = max(doc.get("rerank_score", 0) for doc in state["fine_results"])
             if max_score < 1.0:

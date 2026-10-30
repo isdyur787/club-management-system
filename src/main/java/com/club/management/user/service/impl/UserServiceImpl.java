@@ -28,6 +28,9 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+/**
+ * 账号服务实现，协调账号与默认角色的事务写入、密码验证、Redis 登录失败计数和 JWT 注销黑名单。
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -72,6 +75,7 @@ public class UserServiceImpl implements UserService {
         }
     }
 
+    // 从带事务的 register 入口调用，账号和默认角色关联任一步失败都会回滚。
     private UserVO doRegister(RegisterDTO dto) {
         // 检查用户名是否已存在
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
@@ -290,6 +294,8 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public void logout(String token) {
+        // JWT 本身仍有有效期；将它加入黑名单，使认证过滤器拒绝继续使用。
+        // 黑名单只保留到令牌原本到期的时刻，避免永久占用 Redis。
         long remaining = jwtUtil.getRemainingExpiration(token);
         if (remaining > 0) {
             redisTemplate.opsForValue().set(

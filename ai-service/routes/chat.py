@@ -1,3 +1,4 @@
+# 文件职责：组装问答依赖，提供普通问答、SSE、会话创建及模型状态接口。
 """
 chat.py — 路由薄壳
 
@@ -53,7 +54,7 @@ async def chat(request: ChatRequest, http_request: FastAPIRequest):
         trace_id = http_request.headers.get("X-Trace-Id")
         trace_id = trace_id or str(uuid.uuid4())
 
-        # 2. 语义缓存检查
+        # 2. 仅无历史的首轮问答复用答案缓存，避免同一提问在不同上下文中错误命中。
         history = load_history(session_id)
         cached = _semantic_cache.get(request.club_id, request.message) if not history else None
         if cached:
@@ -69,7 +70,7 @@ async def chat(request: ChatRequest, http_request: FastAPIRequest):
         if fc_result:
             # 输出过滤
             fc_result["answer"] = _guardrails.filter_output(fc_result["answer"])
-            # 写缓存：仅校验通过时缓存，避免放大错误结果
+            # 工具回答来自实时查询，这里只保存会话历史，不写入语义答案缓存。
             save_history(session_id, request.message, fc_result["answer"])
             return ChatResponse(
                 session_id=session_id,
@@ -120,7 +121,7 @@ async def chat(request: ChatRequest, http_request: FastAPIRequest):
         # 6. 安全护栏：输出过滤
         answer = _guardrails.filter_output(answer)
 
-        # 7. 写缓存
+        # 7. 仅首轮且自检通过的 RAG 结果写入缓存，生成失败分支不会缓存降级摘要。
         result_data = {"answer": answer, "sources": sources}
         if not history and final_state.get("check_passed", False):
             _semantic_cache.put(request.club_id, request.message, result_data)

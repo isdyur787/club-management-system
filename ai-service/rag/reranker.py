@@ -1,3 +1,4 @@
+# 文件职责：懒加载精排模型，为查询和候选正文配对打分；失败时保留粗排的前 Top-K。
 import logging
 import threading
 from typing import List, Dict
@@ -45,7 +46,7 @@ def rerank(query: str, candidates: List[Dict], top_k: int = 3) -> List[Dict]:
         if isinstance(scores, (int, float)):
             scores = [scores]
         
-        # 创建新列表，避免就地修改输入
+        # 复制候选字典后附加精排分数，避免污染被检索缓存复用的原始候选。
         scored = []
         for doc, score in zip(candidates, scores):
             new_doc = dict(doc)

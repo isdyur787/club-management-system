@@ -42,6 +42,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * 活动服务实现，协调活动和审批数据、校验操作身份与状态，在事务中完成写入并发布活动事件。
+ */
 @Service
 @RequiredArgsConstructor
 public class ActivityServiceImpl implements ActivityService {
@@ -295,7 +298,7 @@ public class ActivityServiceImpl implements ActivityService {
         ActivityType type = ActivityType.valueOf(activity.getType());
         ApprovalStrategy strategy = approvalManager.getApprovalStrategy(type);
 
-        // 确定当前审批级别：取下一个未完成的级别
+        // 按策略给出的顺序找第一个尚未通过的级别；前级通过后才进入后级。
         List<ApprovalStrategy.ApprovalLevel> levels = strategy.getApprovalLevels();
         int currentLevel = 1;
         for (ApprovalStrategy.ApprovalLevel level : levels) {
@@ -325,7 +328,8 @@ public class ActivityServiceImpl implements ActivityService {
             // 通过
             approvalManager.saveApprovalRecord(id, approverId, currentLevel, ApprovalStatus.APPROVED.getCode(), dto.getComment());
 
-            // 检查是否所有级别都已通过
+            // 审批记录与活动状态共用本方法的事务，失败时一起回滚。
+            // 只有所有必需级别都通过，才把活动设为 APPROVED 并发布事件。
             if (approvalManager.checkAllApproved(activity)) {
                 approvalManager.approveActivity(activity);
                 if (activityMapper.updateById(activity) == 0) {
@@ -369,6 +373,7 @@ public class ActivityServiceImpl implements ActivityService {
             throw new BusinessException(ErrorCode.ACTIVITY_STATUS_INVALID, "数据已被其他人修改，请刷新后重试");
         }
 
+        // 业务服务只发布“活动已结束”这一事实；通知文案由监听器处理，避免在此耦合通知逻辑。
         eventPublisher.publishEvent(new ActivityCompletedEvent(
                 this, id, activity.getClubId(), activity.getCurrentParticipants()));
     }

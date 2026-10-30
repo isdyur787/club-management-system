@@ -29,6 +29,9 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.time.LocalDate;
 
+/**
+ * 积分查询服务实现，先验证所选社团可访问，再切换本次请求租户并聚合个人、社团和最近七天积分数据。
+ */
 @Slf4j
 @Service
 public class PointsServiceImpl implements PointsService {
@@ -53,6 +56,8 @@ public class PointsServiceImpl implements PointsService {
         return pointsLogMapper.selectAvailableClubs(userId, allClubs);
     }
 
+    // 先查当前账号可访问的社团，再切换查询上下文，防止直接信任前端传来的 clubId。
+    // 本次请求结束后由 TenantInterceptor 清理该 ThreadLocal。
     private void selectClub(Long clubId) {
         if (clubId == null || getAvailableClubs().stream().noneMatch(club -> clubId.equals(club.getId()))) {
             throw new ForbiddenException(ErrorCode.FORBIDDEN);
@@ -169,6 +174,7 @@ public class PointsServiceImpl implements PointsService {
         vo.setMonthPoints(((Number) overview.get("month_points")).intValue());
         vo.setScoredMemberCount(((Number) overview.get("scored_member_count")).intValue());
 
+        // 图表固定包含今天和前六天；数据库没有流水的日期在下面补 0，保持时间轴连续。
         LocalDate weekStart = today.minusDays(6);
         Map<String, Integer> daily = pointsLogMapper.selectDailyPoints(clubId,
                 weekStart.atStartOfDay(), today.plusDays(1).atStartOfDay()).stream()

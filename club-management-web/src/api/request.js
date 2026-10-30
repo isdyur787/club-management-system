@@ -1,3 +1,7 @@
+/**
+ * 统一 Axios 客户端：配置 API 前缀与超时，附加登录 Token，解析业务响应并集中提示错误。
+ * 业务登录失效码 40002 或 HTTP 401 会清理登录状态并跳转登录页。
+ */
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/store'
@@ -22,9 +26,10 @@ service.interceptors.request.use(config => {
 service.interceptors.response.use(
   response => {
     const res = response.data
+    // HTTP 成功仍可能是业务失败；调用方仅收到 code=200 的完整业务响应对象。
     if (res.code !== 200) {
       ElMessage.error(res.message || '请求失败')
-      // 401: 跳转登录（SPA 内导航）
+      // 后端业务码 40002 表示登录状态失效，清理缓存后使用 SPA 导航跳转。
       if (res.code === 40002) {
         const userStore = useUserStore()
         userStore.logout()

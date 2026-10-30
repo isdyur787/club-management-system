@@ -1,3 +1,4 @@
+# 文件职责：按文档结构分块、合并区块元数据并写入向量仓储，复用懒加载的 Embedding。
 import re
 import logging
 import threading
@@ -24,6 +25,7 @@ def get_embedding_model():
     return _embedding_model
 
 def chunk_by_doc_type(doc_type: str, content: str) -> List[Dict]:
+    # 汇编按反馈维度、FAQ 按问答、章程/报告按标题分块，其余使用固定长度重叠切分。
     if doc_type == "checkin_compilation":
         return chunk_compilation_by_section(content)
     elif doc_type == "faq":
@@ -108,6 +110,7 @@ def ingest_document(collection: str, doc_id: str, content: str,
         return 0
 
     chunks = [r["text"] for r in chunk_results]
+    # 片段 ID 可由文档 ID 和下标复原，供 MySQL 元数据登记与后续精确删除使用。
     chunk_ids = [f"{doc_id}_chunk_{i}" for i in range(len(chunks))]
     chunk_metadatas = [{**metadata, **r["metadata_addition"], "chunk_index": i}
                        for i, r in enumerate(chunk_results)]

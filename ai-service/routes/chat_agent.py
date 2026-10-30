@@ -1,3 +1,4 @@
+# 文件职责：通过模型路由执行多轮工具调用，首轮不使用工具或执行异常时交回 RAG。
 """
 chat_agent.py — ReAct Agent 循环
 
@@ -106,6 +107,7 @@ def _try_function_calling(question: str, club_id: int, history: List[Dict] = Non
                 except json.JSONDecodeError:
                     func_args = {}
 
+                # 对声明了 club_id 的工具强制使用请求社团，再交注册表筛选参数名并执行。
                 func_args = _validate_fc_tool_arguments(func_name, func_args, club_id)
 
                 logger.info(f"ReAct: executing {func_name}({func_args})")
@@ -117,7 +119,7 @@ def _try_function_calling(question: str, club_id: int, history: List[Dict] = Non
                     "content": json.dumps(tool_result, ensure_ascii=False)
                 })
 
-        # 超过最大迭代，让 LLM 基于已有信息生成回答（不带 tools）
+        # 达到迭代上限后停止追加工具调用，让模型依据已获得的工具结果生成最终回答。
         logger.warning(f"ReAct: max iterations ({MAX_ITERATIONS}) reached, generating answer")
         final_result = router.call_with_fallback(
             task_type="rag",
